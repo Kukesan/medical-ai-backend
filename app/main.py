@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from scalar_fastapi import get_scalar_api_reference
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -27,5 +28,11 @@ app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+
+@app.get("/scalar", include_in_schema=False)
+def scalar_docs() -> object:
+    return get_scalar_api_reference(openapi_url=app.openapi_url)
+
 
 app.add_api_route("/health", lambda: {"status": "ok"}, methods=["GET"], tags=["Health"])
