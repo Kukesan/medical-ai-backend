@@ -15,5 +15,6 @@ class ClinicalNote(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("medical_visits.id"), nullable=False, index=True
     )
     note_text: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float] = mapped_column(nullable=False, default=1.0)
 
     visit = relationship("MedicalVisit", back_populates="clinical_notes")

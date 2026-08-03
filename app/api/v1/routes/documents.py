@@ -20,13 +20,14 @@ async def upload_documents(
     session: AsyncSession = Depends(get_session),
 ) -> DocumentUploadResponse:
     service = DocumentService(session, LocalStorageService())
-    docs = await service.upload_documents(user.id, files)
+    docs, failed = await service.upload_documents(user.id, files)
 
     return DocumentUploadResponse(
         uploaded=[
             DocumentUploadItem(file_name=d.file_name, document_id=str(d.id), status=d.processing_status)
             for d in docs
-        ]
+        ],
+        failed=failed,
     )
 
 

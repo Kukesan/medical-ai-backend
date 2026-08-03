@@ -23,5 +23,6 @@ class Medication(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     duration: Mapped[str | None] = mapped_column(String(100), nullable=True)
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    confidence: Mapped[float] = mapped_column(nullable=False, default=1.0)
 
     visit = relationship("MedicalVisit", back_populates="medications")

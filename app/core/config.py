@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     local_storage_dir: str = Field(default="storage", alias="LOCAL_STORAGE_DIR")
     faiss_index_dir: str = Field(default="storage/faiss", alias="FAISS_INDEX_DIR")
+    log_dir: str = Field(default="logs", alias="LOG_DIR")
+    error_log_retention_days: int = Field(default=30, alias="ERROR_LOG_RETENTION_DAYS")
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
     rate_limit: str = Field(default="100/minute", alias="RATE_LIMIT")
 
@@ -39,6 +41,12 @@ class Settings(BaseSettings):
     @property
     def faiss_index_path(self) -> Path:
         path = Path(self.faiss_index_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def log_path(self) -> Path:
+        path = Path(self.log_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
 

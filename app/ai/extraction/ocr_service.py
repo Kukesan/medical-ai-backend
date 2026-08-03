@@ -1,9 +1,16 @@
 from pathlib import Path
 
-from app.models.enums import DocumentType
+import asyncio
 
+from app.models.enums import DocumentType
+from docling.document_converter import DocumentConverter
+from paddleocr import PaddleOCR
 
 class OCRService:
+    def __init__(self) -> None:
+        self._docling_converter = None
+        self._paddle_ocr = None
+
     async def extract_text(self, file_path: Path) -> dict:
         docling_result = await self._run_docling(file_path)
         if docling_result is not None:
@@ -25,13 +32,12 @@ class OCRService:
 
     async def _run_docling(self, file_path: Path) -> dict | None:
         try:
-            from docling.document_converter import DocumentConverter
-        except Exception:
-            return None
-
-        try:
-            converter = DocumentConverter()
-            result = converter.convert(str(file_path))
+            if self._docling_converter is None:
+                self._docling_converter = await asyncio.to_thread(DocumentConverter)
+            result = await asyncio.to_thread(
+                self._docling_converter.convert,
+                str(file_path)
+            )
             text = result.document.export_to_markdown()
             return {
                 "text": text,
@@ -42,18 +48,15 @@ class OCRService:
                     "engine": "docling",
                 },
             }
-        except Exception:
+        except Exception as e:
+            print("Docling failed:", e)
             return None
 
     async def _run_paddleocr(self, file_path: Path) -> dict | None:
         try:
-            from paddleocr import PaddleOCR
-        except Exception:
-            return None
-
-        try:
-            ocr = PaddleOCR(use_angle_cls=True, lang="en")
-            result = ocr.ocr(str(file_path), cls=True)
+            if self._paddle_ocr is None:
+                self._paddle_ocr = await asyncio.to_thread(PaddleOCR, use_angle_cls=True, lang="en")
+            result = await asyncio.to_thread(self._paddle_ocr.ocr, str(file_path), cls=True)
             lines: list[str] = []
             confidences: list[float] = []
             for page in result:
@@ -74,5 +77,6 @@ class OCRService:
                     "engine": "paddleocr",
                 },
             }
-        except Exception:
+        except Exception as e:
+            print("PaddleOCR failed:", e)
             return None

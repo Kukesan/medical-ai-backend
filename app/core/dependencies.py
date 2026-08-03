@@ -39,8 +39,13 @@ async def get_current_user(
     if not user_id:
         raise UnauthorizedException("Invalid token subject")
 
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError as exc:
+        raise UnauthorizedException("Invalid token subject") from exc
+
     repo = UserRepository(session)
-    user = await repo.get(uuid.UUID(user_id))
+    user = await repo.get(user_uuid)
     if not user:
         raise UnauthorizedException("User not found")
 

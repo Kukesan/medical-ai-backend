@@ -15,5 +15,6 @@ class Allergy(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     substance: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     reaction: Mapped[str | None] = mapped_column(String(255), nullable=True)
     severity: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    confidence: Mapped[float] = mapped_column(nullable=False, default=1.0)
 
     user = relationship("User", back_populates="allergies")

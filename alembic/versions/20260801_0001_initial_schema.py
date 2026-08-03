@@ -15,21 +15,31 @@ branch_labels = None
 depends_on = None
 
 
+def _create_enum_if_not_exists(bind, enum_name: str, values: list[str]) -> None:
+    existing = bind.execute(
+        sa.text("SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = :enum_name)"),
+        {"enum_name": enum_name},
+    ).scalar()
+    if not existing:
+        values_sql = ", ".join(f"'{value}'" for value in values)
+        bind.execute(sa.text(f"CREATE TYPE {enum_name} AS ENUM ({values_sql})"))
+
+
 def upgrade() -> None:
-    document_type = sa.Enum(
-        "prescription", "lab_report", "discharge_summary", "clinical_note", "other", name="document_type"
+    document_type = postgresql.ENUM(
+        "prescription", "lab_report", "discharge_summary", "clinical_note", "other", name="document_type", create_type=False
     )
-    processing_status = sa.Enum(
-        "uploaded", "ocr_completed", "extracted", "analyzed", "failed", name="processing_status"
+    processing_status = postgresql.ENUM(
+        "uploaded", "ocr_completed", "extracted", "analyzed", "failed", name="processing_status", create_type=False
     )
-    risk_level = sa.Enum("low", "medium", "high", name="risk_level")
-    message_role = sa.Enum("user", "assistant", "system", name="message_role")
+    risk_level = postgresql.ENUM("low", "medium", "high", name="risk_level", create_type=False)
+    message_role = postgresql.ENUM("user", "assistant", "system", name="message_role", create_type=False)
 
     bind = op.get_bind()
-    document_type.create(bind, checkfirst=True)
-    processing_status.create(bind, checkfirst=True)
-    risk_level.create(bind, checkfirst=True)
-    message_role.create(bind, checkfirst=True)
+    _create_enum_if_not_exists(bind, "document_type", ["prescription", "lab_report", "discharge_summary", "clinical_note", "other"])
+    _create_enum_if_not_exists(bind, "processing_status", ["uploaded", "ocr_completed", "extracted", "analyzed", "failed"])
+    _create_enum_if_not_exists(bind, "risk_level", ["low", "medium", "high"])
+    _create_enum_if_not_exists(bind, "message_role", ["user", "assistant", "system"])
 
     op.create_table(
         "users",

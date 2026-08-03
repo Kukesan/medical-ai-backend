@@ -14,7 +14,14 @@ class AnalysisResult(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     result_type: Mapped[str] = mapped_column(Text, nullable=False)
-    risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel, name="risk_level"), nullable=False)
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(
+            RiskLevel,
+            name="risk_level",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+        nullable=False,
+    )
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     evidence: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
