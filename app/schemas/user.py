@@ -26,6 +26,7 @@ class UserProfileCreateRequest(ORMBaseSchema):
 
 
 class UserProfileUpdateRequest(ORMBaseSchema):
+    full_name: str | None = Field(default=None, min_length=1, max_length=100)
     age: int | None = Field(default=None, gt=0, lt=150)
     height: float | None = Field(default=None, gt=0, description="Height in centimeters")
     weight: float | None = Field(default=None, gt=0, description="Weight in kilograms")
