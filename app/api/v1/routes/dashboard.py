@@ -5,7 +5,7 @@ from app.core.dependencies import get_current_user, get_session
 from app.models.user import User
 from app.schemas.analysis import AlertItem
 from app.schemas.lab import LabTrendsResponse
-from app.schemas.timeline import TimelineResponse
+from app.schemas.timeline import TimelineListResponse
 from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.timeline_service import TimelineService
@@ -13,14 +13,14 @@ from app.services.timeline_service import TimelineService
 router = APIRouter()
 
 
-@router.get("/timeline", response_model=TimelineResponse)
+@router.get("/timeline", response_model=list[TimelineListResponse])
 async def timeline(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> TimelineResponse:
+) -> list[TimelineListResponse]:
     svc = TimelineService(session)
-    latest = await svc.get_latest(user.id)
-    return TimelineResponse(timeline=latest)
+    latest = await svc.get_by_user_id(user.id)
+    return latest
 
 
 @router.get("/medications", response_model=list[str])
