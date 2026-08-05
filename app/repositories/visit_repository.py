@@ -13,6 +13,30 @@ class VisitRepository(BaseRepository[MedicalVisit]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session, MedicalVisit)
 
+    async def get_by_user_and_id(self, user_id: uuid.UUID, visit_id: uuid.UUID) -> MedicalVisit | None:
+        result = await self.session.execute(
+            select(MedicalVisit)
+            .where(MedicalVisit.user_id == user_id, MedicalVisit.id == visit_id)
+            .options(
+                selectinload(MedicalVisit.medications),
+                selectinload(MedicalVisit.lab_results),
+                selectinload(MedicalVisit.clinical_notes),
+            )
+        )
+        return result.scalars().first()
+
+    async def get_by_document_id(self, document_id: uuid.UUID) -> MedicalVisit | None:
+        result = await self.session.execute(
+            select(MedicalVisit)
+            .where(MedicalVisit.document_id == document_id)
+            .options(
+                selectinload(MedicalVisit.medications),
+                selectinload(MedicalVisit.lab_results),
+                selectinload(MedicalVisit.clinical_notes),
+            )
+        )
+        return result.scalars().first()
+
     async def list_by_user(self, user_id: uuid.UUID) -> Sequence[MedicalVisit]:
         result = await self.session.execute(
             select(MedicalVisit)

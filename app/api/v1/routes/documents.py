@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, get_session
 from app.core.exceptions import NotFoundException
 from app.models.user import User
-from app.schemas.document import DocumentOut, DocumentUploadItem, DocumentUploadResponse
+from app.schemas.document import DocumentOut, DocumentResponse, DocumentUploadItem, DocumentUploadResponse
 from app.services.document_service import DocumentService
 from app.services.storage_service import LocalStorageService
 
@@ -49,23 +49,15 @@ async def list_documents(
     }) for d in docs]
 
 
-@router.get("/{document_id}", response_model=DocumentOut)
+@router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: uuid.UUID,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> DocumentOut:
+) -> DocumentResponse:
     service = DocumentService(session, LocalStorageService())
     doc = await service.get_document(user.id, document_id)
     if not doc:
         raise NotFoundException("Document not found")
 
-    return DocumentOut.model_validate({
-        "id": str(doc.id),
-        "file_name": doc.file_name,
-        "mime_type": doc.mime_type,
-        "file_size": doc.file_size,
-        "document_type": doc.document_type,
-        "processing_status": doc.processing_status,
-        "created_at": doc.created_at,
-    })
+    return doc

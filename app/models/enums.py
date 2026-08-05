@@ -23,6 +23,15 @@ class RiskLevel(StrEnum):
     HIGH = "high"
 
 
+class AlertCategory(StrEnum):
+    DRUG_INTERACTION = "drug_interaction"
+    DUPLICATE_MEDICATION = "duplicate_medication"
+    ALLERGY_CONFLICT = "allergy_conflict"
+    DOSAGE_CONFLICT = "dosage_conflict"
+    MEDICATION_CHANGE = "medication_change"
+    LAB_ABNORMALITY = "lab_abnormality"
+
+
 class MessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
