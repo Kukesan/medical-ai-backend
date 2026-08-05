@@ -9,6 +9,8 @@ from app.models.medical_document import MedicalDocument
 from app.models.medical_visit import MedicalVisit
 from app.models.medication import Medication
 from app.models.patient_timeline import PatientTimeline
+from app.models.vaccination import Vaccination
+from app.models.surgery import Surgery
 from app.models.user import User
 
 __all__ = [
@@ -24,4 +26,6 @@ __all__ = [
     "Medication",
     "PatientTimeline",
     "User",
+    "Vaccination",
+    "Surgery",
 ]

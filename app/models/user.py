@@ -18,3 +18,5 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     allergies = relationship("Allergy", back_populates="user", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     analysis_results = relationship("AnalysisResult", back_populates="user", cascade="all, delete-orphan")
+    vaccinations = relationship("Vaccination", back_populates="user", cascade="all, delete-orphan")
+    surgeries = relationship("Surgery", back_populates="user", cascade="all, delete-orphan")
