@@ -1,4 +1,6 @@
-from datetime import date
+from datetime import date, datetime
+
+from typing import Optional
 
 from app.schemas.base import ORMBaseSchema
 
@@ -15,3 +17,8 @@ class TimelineEntry(ORMBaseSchema):
 
 class TimelineResponse(ORMBaseSchema):
     timeline: list[TimelineEntry]
+
+class TimelineListResponse(ORMBaseSchema):
+    name: Optional[str] = None
+    date: Optional[datetime] | None
+    category: Optional[str] = None
