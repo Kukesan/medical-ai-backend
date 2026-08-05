@@ -12,6 +12,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.repositories.surgery_repository import SurgeryRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.vaccination_repository import VaccinationRepository
+from app.schemas.consultant import ConversationListResponse
 
 MAX_DOCUMENTS = 20
 MAX_CHARS_PER_DOCUMENT = 4000
@@ -68,6 +69,17 @@ class ConsultantService:
     async def history(self, user_id: uuid.UUID, session_id: uuid.UUID) -> list[ChatMessage]:
         chat_session = await self.chat_repo.get_session(user_id, session_id)
         return chat_session.messages if chat_session else []
+
+    async def list_sessions(self, user_id: uuid.UUID) -> list[ConversationListResponse]:
+        sessions = await self.chat_repo.list_sessions(user_id)
+        return [
+            ConversationListResponse(
+                title=f"Conversation {i+1}",
+                session_id=s.id,
+                updated_at=s.updated_at,
+            )
+            for i, s in enumerate(sessions)
+        ]
 
     async def _build_patient_context(self, user_id: uuid.UUID) -> str:
         user = await self.user_repo.get(user_id)

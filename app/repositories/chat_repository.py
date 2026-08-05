@@ -31,3 +31,11 @@ class ChatRepository(BaseRepository[ChatSession]):
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def list_sessions(self, user_id: uuid.UUID) -> Sequence[ChatSession]:
+        result = await self.session.execute(
+            select(ChatSession)
+            .where(ChatSession.user_id == user_id)
+            .order_by(ChatSession.updated_at.desc())
+        )
+        return result.scalars().all()

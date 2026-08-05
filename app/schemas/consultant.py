@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from app.schemas.base import ORMBaseSchema
 from app.schemas.common import Citation, SafetyWarning
@@ -27,3 +28,8 @@ class ConsultantMessageOut(ORMBaseSchema):
 class ConsultantHistoryResponse(ORMBaseSchema):
     session_id: str
     messages: list[ConsultantMessageOut]
+
+class ConversationListResponse(ORMBaseSchema):
+    title: str
+    session_id: UUID
+    updated_at: datetime

@@ -1,5 +1,5 @@
 import uuid
-
+from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.schemas.consultant import (
     ConsultantHistoryResponse,
     ConsultantMessageOut,
     ConsultantResponse,
+    ConversationListResponse,
 )
 from app.services.consultant_service import ConsultantService
 
@@ -62,3 +63,12 @@ async def consultant_history(
             for r in rows
         ],
     )
+
+@router.get("/conversations", response_model=list[ConversationListResponse])
+async def list_conversations(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+    ) -> list[ConversationListResponse]:
+    svc = ConsultantService(session)
+    sessions = await svc.list_sessions(user.id)
+    return sessions
