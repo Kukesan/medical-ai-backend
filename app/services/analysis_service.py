@@ -1,3 +1,4 @@
+import json
 import uuid
 from pathlib import Path
 from app.ai.interaction_checker.medication_interaction_service import MedicationInteractionService
@@ -14,7 +15,7 @@ from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.ocr_service import OCRService
 from app.services.timeline_service import TimelineService
-from app.schemas.medication_analyze import MedicalDocumentInput, MedicationAlert, MedicationReviewResult
+from app.schemas.medication_analyze import MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicationAlert, MedicationReviewResult
 
 class AnalysisService:
     def __init__(self, session: AsyncSession) -> None:
@@ -88,8 +89,8 @@ class AnalysisService:
             title=alert.title,
             description=alert.description,
             clinical_reason=alert.clinical_reason,
-            timeline=[str(item.model_dump(exclude_none=True)) for item in alert.timeline],
-            evidence=[str(item.model_dump(exclude_none=True)) for item in alert.evidence],
+            timeline=[item.model_dump(mode="json", exclude_none=True) for item in alert.timeline],
+            evidence=[item.model_dump(mode="json",exclude_none=True) for item in alert.evidence],
             recommendation=alert.recommendation,
             confidence=alert.confidence,
         )
@@ -129,19 +130,41 @@ class AnalysisService:
 
         await self.session.commit()
 
-    async def get_analysis_results(self, user_id: uuid.UUID) -> list[MedicationAlert]:
+    async def get_analysis_results(self, user_id: uuid.UUID) -> list[MedicalAnalysisReponse]:
         results = await self.analysis_repo.list_by_user(user_id)
-        return [MedicationAlert(
+        return [MedicalAnalysisReponse(
+            id=result.id,
+            user_id=result.user_id,
             category=result.category,
             risk_level=result.risk_level,
             title=result.title,
             description=result.description,
             clinical_reason=result.clinical_reason,
             confidence=result.confidence,
-            timeline=[eval(item) for item in result.timeline],
-            evidence=[eval(item) for item in result.evidence],
-            recommendation=result.recommendation
+            timeline=result.timeline,
+            evidence=result.evidence,
+            recommendation=result.recommendation,
+            created_at=result.created_at,
         ) for result in results]
+
+    async def get_analysis_result_by_id(self, user_id: uuid.UUID, result_id: uuid.UUID) -> MedicalAnalysisReponse | None:
+        result = await self.analysis_repo.get_by_user_and_id(user_id, result_id)
+        if not result:
+            return None
+        return MedicalAnalysisReponse(
+            id=result.id,
+            user_id=result.user_id,
+            category=result.category,
+            risk_level=result.risk_level,
+            title=result.title,
+            description=result.description,
+            clinical_reason=result.clinical_reason,
+            confidence=result.confidence,
+            timeline=result.timeline,
+            evidence=result.evidence,
+            recommendation=result.recommendation,
+            created_at=result.created_at,
+        )
 
     async def analyze_medication_interactions(self, user_id: uuid.UUID) -> dict:
         medication_interaction_service = MedicationInteractionService()

@@ -17,3 +17,9 @@ class AllergyRepository(BaseRepository[Allergy]):
             select(Allergy).where(Allergy.user_id == user_id).order_by(Allergy.created_at.desc())
         )
         return result.scalars().all()
+
+    async def get_by_user_and_id(self, user_id: uuid.UUID, allergy_id: uuid.UUID) -> Allergy | None:
+        result = await self.session.execute(
+            select(Allergy).where(Allergy.user_id == user_id, Allergy.id == allergy_id)
+        )
+        return result.scalar_one_or_none()

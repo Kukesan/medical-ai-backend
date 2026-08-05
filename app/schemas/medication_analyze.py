@@ -1,6 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel, Field
 from uuid import UUID
+from datetime import datetime as DateTime
 
 from app.models.enums import RiskLevel
 
@@ -15,12 +16,12 @@ class AlertCategory(str, Enum):
 
 
 class MedicationEvidence(BaseModel):
-    document_id: UUID | None = None
+    document_id: str | None = None
     snippet: str
 
 
 class MedicationTimeline(BaseModel):
-    document_id: UUID | None = None
+    document_id: str | None = None
     date: str | None = None
     finding: str
 
@@ -50,3 +51,21 @@ class MedicalDocumentInput(BaseModel):
     document_id: UUID
     document_date: str | None = None
     ocr_text: str
+
+class MedicalAnalysisReponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    category: AlertCategory
+    risk_level: RiskLevel
+    title: str
+    description: str
+    clinical_reason: str
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description="AI confidence score between 0 and 1"
+    )
+    timeline: list[MedicationTimeline] = []
+    evidence: list[MedicationEvidence] = []
+    recommendation: str
+    created_at: DateTime

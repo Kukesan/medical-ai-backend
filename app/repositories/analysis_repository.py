@@ -20,3 +20,10 @@ class AnalysisRepository(BaseRepository[AnalysisResult]):
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def get_by_user_and_id(self, user_id: uuid.UUID, analysis_id: uuid.UUID) -> AnalysisResult | None:
+        result = await self.session.execute(
+            select(AnalysisResult)
+            .where(AnalysisResult.user_id == user_id, AnalysisResult.id == analysis_id)
+        )
+        return result.scalar_one_or_none()
