@@ -36,4 +36,8 @@ class VaccinationService:
         )
 
     async def delete_vaccination(self, user_id: str, vaccination_id: str) -> None:
-        return await self.vaccination_repo.delete(user_id, vaccination_id)
+        vaccination = await self.vaccination_repo.get(vaccination_id)
+        if vaccination is None:
+            raise ValueError(f"Vaccination with ID {vaccination_id} not found for user {user_id}.")
+        await self.vaccination_repo.delete(vaccination)
+        await self.session.commit()

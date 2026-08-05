@@ -1,4 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import allergy
+from app.models import allergy
 from app.models.allergy import Allergy
 
 from app.repositories.allergy_repository import AllergyRepository
@@ -34,5 +36,9 @@ class AllergyService:
             confidence=allergy_entity.confidence
         )
 
-    async def delete_allergy(self, user_id: str, allergy_id: str) -> None:
-        return await self.allergy_repo.delete(user_id, allergy_id)
+    async def delete_allergy(self, allergy_id: str) -> None:
+        allergy = await self.allergy_repo.get(allergy_id)
+        if allergy is None:
+            raise ValueError(f"Allergy with ID {allergy_id} not found.")
+        await self.allergy_repo.delete(allergy)
+        await self.session.commit()

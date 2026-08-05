@@ -24,3 +24,8 @@ async def get_surgery(surgery_id: str, user: User = Depends(get_current_user), s
 async def create_surgery(surgery_data: SurgeryCreateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     surgeries = SurgeryService(session)
     return await surgeries.create_surgery(user.id, surgery_data)
+
+@router.delete("/{surgery_id}")
+async def delete_surgery(surgery_id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    surgeries = SurgeryService(session)
+    return await surgeries.delete_surgery(user.id, surgery_id)

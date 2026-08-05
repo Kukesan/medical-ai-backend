@@ -33,4 +33,8 @@ class SurgeryService:
         )
 
     async def delete_surgery(self, user_id: str, surgery_id: str) -> None:
-        return await self.surgery_repo.delete(user_id, surgery_id)
+        surgery = await self.surgery_repo.get(surgery_id)
+        if surgery is None:
+            raise ValueError(f"Surgery with ID {surgery_id} not found for user {user_id}.")
+        await self.surgery_repo.delete(surgery)
+        await self.session.commit()

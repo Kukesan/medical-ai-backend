@@ -23,3 +23,8 @@ async def get_vaccination(vaccination_id: str, user: User = Depends(get_current_
 async def create_vaccination(vaccination_data: VaccinationCreateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     vaccinations = VaccinationService(session)
     return await vaccinations.create_vaccination(user.id, vaccination_data)
+
+@router.delete("/{vaccination_id}")
+async def delete_vaccination(vaccination_id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    vaccinations = VaccinationService(session)
+    return await vaccinations.delete_vaccination(user.id, vaccination_id)

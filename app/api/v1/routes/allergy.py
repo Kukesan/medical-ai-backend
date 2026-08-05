@@ -23,3 +23,8 @@ async def get_allergy(allergy_id: str, user: User = Depends(get_current_user), s
 async def create_allergy(allergy_data: AllergyCreateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     allergys = AllergyService(session)
     return await allergys.create_allergy(user.id, allergy_data)
+
+@router.delete("/{allergy_id}")
+async def delete_allergy(allergy_id: str, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    allergys = AllergyService(session)
+    return await allergys.delete_allergy(allergy_id)
