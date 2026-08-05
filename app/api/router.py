@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import analysis, auth, chat, dashboard, documents, allergy, vaccination, surgery
+from app.api.v1.routes import analysis, auth, chat, dashboard, documents, allergy, vaccination, surgery, user
 
 api_router = APIRouter()
 api_router.include_router(auth.router, tags=["auth"])
@@ -11,3 +11,4 @@ api_router.include_router(chat.router, tags=["chat"])
 api_router.include_router(allergy.router, tags=["allergy"])
 api_router.include_router(vaccination.router, tags=["vaccination"])
 api_router.include_router(surgery.router, tags=["surgery"])
+api_router.include_router(user.router, tags=["user"])
