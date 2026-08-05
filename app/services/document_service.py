@@ -135,7 +135,7 @@ class DocumentService:
         for doc in docs:
             await self.session.refresh(doc)
 
-        await analyze_service.analyze_medication_interactions(user_id)
+        # await analyze_service.analyze_medication_interactions(user_id)
 
         return docs, failed
 

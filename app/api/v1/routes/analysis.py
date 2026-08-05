@@ -47,3 +47,12 @@ async def get_analysis_result_by_id(
         service = AnalysisService(session)
         result = await service.get_analysis_result_by_id(user.id, result_id)
         return result
+
+@router.post("/analyze-medication-interactions", response_model=dict)
+async def analyze_medication_interactions(
+    user: User = Depends(get_current_user),
+) -> dict:
+    async with SessionLocal() as session:
+        service = AnalysisService(session)
+        result = await service.analyze_medication_interactions(user.id)
+        return result
