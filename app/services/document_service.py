@@ -5,7 +5,7 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.emdeddings_formater.service import EmbeddingsFormatterService
-from app.ai.extraction.ocr_service import OCRService
+from app.ai.extraction.ocr_service import get_ocr_service
 from app.ai.extraction.service import ExtractionService
 from app.models.allergy import Allergy
 from app.models.medication import Medication
@@ -46,7 +46,7 @@ class DocumentService:
         docs: list[MedicalDocument] = []
         failed: list[str] = []
 
-        ocr_service = OCRService();  # Assuming you have an OCR service for processing documents
+        ocr_service = get_ocr_service()
         embedding_formatter_service = EmbeddingsFormatterService();
         analyze_service = AnalysisService(self.session);  # Assuming you have an analysis service for processing documents
         for file in files:

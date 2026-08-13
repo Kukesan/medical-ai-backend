@@ -1,10 +1,13 @@
 from pathlib import Path
 
 import asyncio
+import logging
 
 from app.models.enums import DocumentType
 from docling.document_converter import DocumentConverter
 from paddleocr import PaddleOCR
+
+logger = logging.getLogger(__name__)
 
 class OCRService:
     def __init__(self) -> None:
@@ -20,6 +23,7 @@ class OCRService:
         if paddle_result is not None:
             return paddle_result
 
+        logger.error("All OCR engines failed for %s; returning empty text", file_path)
         return {
             "text": "",
             "metadata": {
@@ -48,8 +52,8 @@ class OCRService:
                     "engine": "docling",
                 },
             }
-        except Exception as e:
-            print("Docling failed:", e)
+        except Exception:
+            logger.exception("Docling OCR failed for %s", file_path)
             return None
 
     async def _run_paddleocr(self, file_path: Path) -> dict | None:
@@ -77,6 +81,16 @@ class OCRService:
                     "engine": "paddleocr",
                 },
             }
-        except Exception as e:
-            print("PaddleOCR failed:", e)
+        except Exception:
+            logger.exception("PaddleOCR failed for %s", file_path)
             return None
+
+
+_ocr_service: OCRService | None = None
+
+
+def get_ocr_service() -> OCRService:
+    global _ocr_service
+    if _ocr_service is None:
+        _ocr_service = OCRService()
+    return _ocr_service
