@@ -1,3 +1,4 @@
+import tempfile
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -23,6 +24,7 @@ from app.models.medical_visit import MedicalVisit
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.visit_repository import VisitRepository
 from app.services.analysis_service import AnalysisService
+from app.services.s3_service import S3Service
 from app.services.storage_service import LocalStorageService
 
 class DocumentService:
@@ -59,9 +61,6 @@ class DocumentService:
             file.file.seek(0)
 
             saved_path: Path = await self.storage.save_upload(str(user_id), file)
-            ocr_result: dict = await ocr_service.extract_text(saved_path)
-
-            embedding_text = await embedding_formatter_service.format_text_for_embedding(ocr_result.get("text", ""))
 
             doc = MedicalDocument(
                 user_id=user_id,
@@ -69,68 +68,16 @@ class DocumentService:
                 file_path=str(saved_path),
                 mime_type=file.content_type or "application/octet-stream",
                 file_size=file_size,
-                ocr_text=ocr_result.get("text", ""),
-                ocr_metadata=ocr_result.get("metadata", {}),
-                embedding_text=embedding_text,
-                processing_status=ProcessingStatus.OCR_COMPLETED if ocr_result.get("text", "") else ProcessingStatus.FAILED,
+                processing_status=ProcessingStatus.UPLOADED,
             )
 
             await self.repo.create(doc)
-            await self.session.flush()           
+            await self.session.flush()
 
-            extraction_service = ExtractionService();            
-            if doc.ocr_text:
-                structured_data = await extraction_service.extract_to_schema(doc.ocr_text, ExtractedMedicalVisit)
-                validated_data = ExtractedMedicalVisit(**structured_data)
-                visit = MedicalVisit(
-                        **validated_data.model_dump(exclude_none=True),
-                        user_id=user_id,
-                        document_id=doc.id
-                    )
-                await self.visit_repo.create(visit)
+            await self._extract_document(doc, saved_path, user_id, ocr_service, embedding_formatter_service)
 
-                structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedAllergy)
-                for item in structured_data:
-                    if item.substance:
-                        allergy = Allergy(
-                                **item.model_dump(exclude_none=True),
-                                user_id=user_id,
-                            )
-                        await self.allergy_repo.create(allergy)
+            docs.append(doc)
 
-                structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedClinicalNote)
-                for item in structured_data:
-                    if item.note_text:
-                        clinical_note = ClinicalNote(
-                                **item.model_dump(exclude_none=True),
-                                visit_id=visit.id,
-                            )
-                        await self.clinical_note_repo.create(clinical_note)
-
-                structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedLabResult)
-                for item in structured_data:
-                    if item.test_name:
-                        lab_result = LabResult(
-                                **item.model_dump(exclude_none=True),
-                                visit_id=visit.id,
-                            )
-                        await self.lab_result_repo.create(lab_result)
-
-                structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedMedication)
-                for item in structured_data:
-                    if item.name:
-                        medication = Medication(
-                                **item.model_dump(exclude_none=True),
-                                visit_id=visit.id
-                            )
-                        await self.medication_repo.create(medication)
-
-                doc.processing_status = ProcessingStatus.EXTRACTED
-            else:
-                doc.processing_status = ProcessingStatus.FAILED
-
-            docs.append(doc)      
- 
         await self.session.commit()
         for doc in docs:
             await self.session.refresh(doc)
@@ -138,6 +85,100 @@ class DocumentService:
         # await analyze_service.analyze_medication_interactions(user_id)
 
         return docs, failed
+
+    async def confirm_s3_upload(
+        self, user_id: uuid.UUID, document_id: uuid.UUID, s3: S3Service
+    ) -> MedicalDocument | None:
+        doc = await self.repo.get_by_user_and_id(user_id, document_id)
+        if not doc:
+            return None
+
+        file_bytes = await s3.download_object(doc.file_path)
+        doc.file_size = len(file_bytes)
+
+        suffix = Path(doc.file_name or "file").suffix
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = Path(tmp.name)
+
+        try:
+            ocr_service = get_ocr_service()
+            embedding_formatter_service = EmbeddingsFormatterService()
+            await self._extract_document(doc, tmp_path, user_id, ocr_service, embedding_formatter_service)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        await self.session.commit()
+        await self.session.refresh(doc)
+        return doc
+
+    async def _extract_document(
+        self,
+        doc: MedicalDocument,
+        file_path: Path,
+        user_id: uuid.UUID,
+        ocr_service,
+        embedding_formatter_service: EmbeddingsFormatterService,
+    ) -> None:
+        ocr_result: dict = await ocr_service.extract_text(file_path)
+        doc.ocr_text = ocr_result.get("text", "")
+        doc.ocr_metadata = ocr_result.get("metadata", {})
+        doc.embedding_text = await embedding_formatter_service.format_text_for_embedding(doc.ocr_text)
+
+        if not doc.ocr_text:
+            doc.processing_status = ProcessingStatus.FAILED
+            return
+
+        doc.processing_status = ProcessingStatus.OCR_COMPLETED
+
+        extraction_service = ExtractionService()
+
+        structured_data = await extraction_service.extract_to_schema(doc.ocr_text, ExtractedMedicalVisit)
+        validated_data = ExtractedMedicalVisit(**structured_data)
+        visit = MedicalVisit(
+                **validated_data.model_dump(exclude_none=True),
+                user_id=user_id,
+                document_id=doc.id
+            )
+        await self.visit_repo.create(visit)
+
+        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedAllergy)
+        for item in structured_data:
+            if item.substance:
+                allergy = Allergy(
+                        **item.model_dump(exclude_none=True),
+                        user_id=user_id,
+                    )
+                await self.allergy_repo.create(allergy)
+
+        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedClinicalNote)
+        for item in structured_data:
+            if item.note_text:
+                clinical_note = ClinicalNote(
+                        **item.model_dump(exclude_none=True),
+                        visit_id=visit.id,
+                    )
+                await self.clinical_note_repo.create(clinical_note)
+
+        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedLabResult)
+        for item in structured_data:
+            if item.test_name:
+                lab_result = LabResult(
+                        **item.model_dump(exclude_none=True),
+                        visit_id=visit.id,
+                    )
+                await self.lab_result_repo.create(lab_result)
+
+        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedMedication)
+        for item in structured_data:
+            if item.name:
+                medication = Medication(
+                        **item.model_dump(exclude_none=True),
+                        visit_id=visit.id
+                    )
+                await self.medication_repo.create(medication)
+
+        doc.processing_status = ProcessingStatus.EXTRACTED
 
     async def list_documents(self, user_id: uuid.UUID) -> list[MedicalDocument]:
         return list(await self.repo.list_by_user(user_id))

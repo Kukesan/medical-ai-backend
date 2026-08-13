@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
     rate_limit: str = Field(default="100/minute", alias="RATE_LIMIT")
 
+    aws_access_key_id: str = Field(default="", alias="AWS_ACCESS_KEY_ID")
+    aws_secret_access_key: str = Field(default="", alias="AWS_SECRET_ACCESS_KEY")
+    aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
+    s3_bucket_name: str = Field(default="", alias="S3_BUCKET_NAME")
+    presigned_url_expire_seconds: int = Field(default=3600, alias="PRESIGNED_URL_EXPIRE_SECONDS")
+
     @property
     def local_storage_path(self) -> Path:
         path = Path(self.local_storage_dir)
