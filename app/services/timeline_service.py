@@ -1,55 +1,47 @@
-from datetime import datetime
 import uuid
+from datetime import date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.patient_timeline import PatientTimeline
-from app.repositories.surgery_repository import SurgeryRepository
-from app.repositories.visit_repository import VisitRepository
-from app.repositories.vaccination_repository import VaccinationRepository
+from app.repositories.timeline_repository import TimelineRepository
 from app.schemas.timeline import TimelineListResponse
+from app.services.medical_record_service import MedicalRecordService
+
+
+def _parse_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None
 
 
 class TimelineService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.visit_repo = VisitRepository(session)
-        self.vaccine_repo = VaccinationRepository(session)
-        self.surgery_repo = SurgeryRepository(session)
-
-    async def build_for_user(self, user_id: uuid.UUID) -> list[dict]:
-        visits = list(await self.visit_repo.list_by_user(user_id))
-        timeline = self.ai_timeline.build(visits)
-
-        record = PatientTimeline(user_id=user_id, timeline_payload=timeline)
-        await self.timeline_repo.create(record)
-        await self.session.commit()
-        return timeline
-
-    async def get_latest(self, user_id: uuid.UUID) -> list[dict]:
-        latest = await self.timeline_repo.get_latest_by_user(user_id)
-        return latest.timeline_payload if latest else []
+        self.timeline_repo = TimelineRepository(session)
+        self.record_service = MedicalRecordService(session)
 
     async def get_by_user_id(self, user_id: uuid.UUID) -> list[TimelineListResponse]:
-        visits = list(await self.visit_repo.list_by_user(user_id))
-        vaccines = list(await self.vaccine_repo.list_by_user(user_id))
-        surgeries = list(await self.surgery_repo.list_by_user(user_id))
+        entries = list(await self.timeline_repo.list_by_user(user_id))
+        vaccinations = await self.record_service.list_data_by_type(user_id, "VACCINATION")
+        surgeries = await self.record_service.list_data_by_type(user_id, "SURGERY")
 
         timeline_entries = []
-        for visit in visits:
+        for entry in entries:
             timeline_entries.append(
                 TimelineListResponse(
-                    name=visit.doctor_name,
-                    date=visit.visit_date,
+                    name=entry.doctor_name,
+                    date=entry.visit_date,
                     category="Medical Visit"
                 )
             )
 
-        for vaccine in vaccines:
+        for vaccination in vaccinations:
             timeline_entries.append(
                 TimelineListResponse(
-                    name=vaccine.name,
-                    date=vaccine.date_administered,
+                    name=vaccination.data.get("name"),
+                    date=_parse_datetime(vaccination.data.get("date_administered")),
                     category="Vaccination"
                 )
             )
@@ -57,8 +49,8 @@ class TimelineService:
         for surgery in surgeries:
             timeline_entries.append(
                 TimelineListResponse(
-                    name=surgery.name,
-                    date=surgery.date,
+                    name=surgery.data.get("name"),
+                    date=_parse_date(surgery.data.get("date")),
                     category="Surgery"
                 )
             )

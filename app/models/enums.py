@@ -36,3 +36,13 @@ class MessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+
+
+class RecordStatus(StrEnum):
+    PROCESSING = "processing"
+    EXTRACTED = "extracted"
+    NEEDS_REVIEW = "needs_review"
+    USER_EDITED = "user_edited"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+    CONFLICT_REQUIRES_REVIEW = "conflict_requires_review"

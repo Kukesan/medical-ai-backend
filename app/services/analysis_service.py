@@ -14,7 +14,6 @@ from app.services.extraction_service import ExtractionService
 from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.ocr_service import OCRService
-from app.services.timeline_service import TimelineService
 from app.schemas.medication_analyze import MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicationAlert, MedicationReviewResult
 
 class AnalysisService:
@@ -25,7 +24,6 @@ class AnalysisService:
 
         self.ocr = OCRService()
         self.extractor = ExtractionService()
-        self.timeline = TimelineService(session)
         self.medication = MedicationAnalysisService(session)
         self.lab = LabTrendService(session)
         self.embedding = EmbeddingService(session)
@@ -125,7 +123,6 @@ class AnalysisService:
             for alert in med_result.get(key, []):
                 await self.analysis_repo.create(self._build_result_from_local_alert(user_id, alert))
 
-        await self.timeline.build_for_user(user_id)
         _ = await self.lab.trends(user_id)
 
         await self.session.commit()

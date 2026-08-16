@@ -1,7 +1,14 @@
 from app.models.analysis_result import AnalysisResult
 from app.models.chat_message import ChatMessage
-from app.models.enums import DocumentType, MessageRole, ProcessingStatus, RiskLevel
+from app.models.enums import (
+    DocumentType,
+    MessageRole,
+    ProcessingStatus,
+    RecordStatus,
+    RiskLevel,
+)
 from app.models.medical_document import MedicalDocument
+from app.models.medical_record import MedicalRecord
 
 
 def test_sqlalchemy_enums_use_enum_values() -> None:
@@ -14,3 +21,9 @@ def test_sqlalchemy_enums_use_enum_values() -> None:
     assert processing_status_values == [item.value for item in ProcessingStatus]
     assert risk_level_values == [item.value for item in RiskLevel]
     assert role_values == [item.value for item in MessageRole]
+
+
+def test_medical_record_enums_use_enum_values() -> None:
+    record_status_values = MedicalRecord.__table__.c.status.type.enums
+
+    assert record_status_values == [item.value for item in RecordStatus]

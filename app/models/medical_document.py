@@ -41,5 +41,5 @@ class MedicalDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     embedding_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user = relationship("User", back_populates="documents")
-    visits = relationship("MedicalVisit", back_populates="document", cascade="all, delete-orphan")
+    timeline_entries = relationship("PatientTimeline", back_populates="document", cascade="all, delete-orphan")
     embeddings = relationship("Embedding", back_populates="document", cascade="all, delete-orphan")

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,13 +7,11 @@ from app.ai.consultant.service import ConsultantAIService
 from app.models.chat_message import ChatMessage
 from app.models.chat_session import ChatSession
 from app.models.enums import MessageRole
-from app.repositories.allergy_repository import AllergyRepository
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.surgery_repository import SurgeryRepository
 from app.repositories.user_repository import UserRepository
-from app.repositories.vaccination_repository import VaccinationRepository
 from app.schemas.consultant import ConversationListResponse
+from app.services.medical_record_service import MedicalRecordService
 
 MAX_DOCUMENTS = 20
 MAX_CHARS_PER_DOCUMENT = 4000
@@ -23,9 +22,7 @@ class ConsultantService:
         self.session = session
         self.chat_repo = ChatRepository(session)
         self.user_repo = UserRepository(session)
-        self.allergy_repo = AllergyRepository(session)
-        self.vaccination_repo = VaccinationRepository(session)
-        self.surgery_repo = SurgeryRepository(session)
+        self.record_service = MedicalRecordService(session)
         self.document_repo = DocumentRepository(session)
         self.ai = ConsultantAIService()
 
@@ -83,9 +80,9 @@ class ConsultantService:
 
     async def _build_patient_context(self, user_id: uuid.UUID) -> str:
         user = await self.user_repo.get(user_id)
-        allergies = await self.allergy_repo.list_by_user(user_id)
-        vaccinations = await self.vaccination_repo.list_by_user(user_id)
-        surgeries = await self.surgery_repo.list_by_user(user_id)
+        allergies = await self.record_service.list_data_by_type(user_id, "ALLERGY")
+        vaccinations = await self.record_service.list_data_by_type(user_id, "VACCINATION")
+        surgeries = await self.record_service.list_data_by_type(user_id, "SURGERY")
         documents = await self.document_repo.list_by_user(user_id)
 
         sections: list[str] = [self._format_profile(user)]
@@ -114,7 +111,8 @@ class ConsultantService:
         if not allergies:
             return "Known Allergies: none recorded"
         lines = [
-            f"- {a.substance} (reaction: {a.reaction or 'unknown'}, severity: {a.severity or 'unknown'})"
+            f"- {a.data.get('substance')} (reaction: {a.data.get('reaction') or 'unknown'}, "
+            f"severity: {a.data.get('severity') or 'unknown'})"
             for a in allergies
         ]
         return "Known Allergies:\n" + "\n".join(lines)
@@ -124,16 +122,22 @@ class ConsultantService:
             return "Vaccination History: none recorded"
         lines = []
         for v in vaccinations:
-            line = f"- {v.name} administered {v.date_administered.date()}"
-            if v.is_next_due and v.next_due_date:
-                line += f", next due {v.next_due_date.date()}"
+            administered = v.data.get("date_administered")
+            line = f"- {v.data.get('name')} administered {datetime.fromisoformat(administered).date() if administered else 'unknown date'}"
+            next_due = v.data.get("next_due_date")
+            if v.data.get("is_next_due") and next_due:
+                line += f", next due {datetime.fromisoformat(next_due).date()}"
             lines.append(line)
         return "Vaccination History:\n" + "\n".join(lines)
 
     def _format_surgeries(self, surgeries) -> str:
         if not surgeries:
             return "Surgery History: none recorded"
-        lines = [f"- {s.name} on {s.date}" + (f" (notes: {s.notes})" if s.notes else "") for s in surgeries]
+        lines = [
+            f"- {s.data.get('name')} on {s.data.get('date')}"
+            + (f" (notes: {s.data.get('notes')})" if s.data.get("notes") else "")
+            for s in surgeries
+        ]
         return "Surgery History:\n" + "\n".join(lines)
 
     def _format_documents(self, documents) -> str:

@@ -41,4 +41,3 @@ class DocumentResponse(ORMBaseSchema):
     medications: list[ExtractedMedication]
     lab_results: list[ExtractedLabResult]
     diagnosis_text: str | None = None
-    clinical_notes: list[str]

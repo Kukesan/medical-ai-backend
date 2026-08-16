@@ -23,6 +23,21 @@ class UnauthorizedException(AppException):
         super().__init__(message=message, status_code=HTTPStatus.UNAUTHORIZED, code="unauthorized")
 
 
+class ForbiddenException(AppException):
+    def __init__(self, message: str = "Forbidden"):
+        super().__init__(message=message, status_code=HTTPStatus.FORBIDDEN, code="forbidden")
+
+
+class ValidationException(AppException):
+    def __init__(self, message: str = "Validation failed"):
+        super().__init__(message=message, status_code=HTTPStatus.UNPROCESSABLE_ENTITY, code="validation_error")
+
+
+class ConflictException(AppException):
+    def __init__(self, message: str = "Conflict"):
+        super().__init__(message=message, status_code=HTTPStatus.CONFLICT, code="conflict")
+
+
 async def app_exception_handler(_: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,

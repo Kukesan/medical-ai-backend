@@ -1,8 +1,8 @@
 from collections import defaultdict
 from datetime import UTC, datetime
+from typing import Any
 
 from app.models.enums import RiskLevel
-from app.models.medication import Medication
 
 
 class DrugInteractionService:
@@ -11,7 +11,7 @@ class DrugInteractionService:
         frozenset(["ibuprofen", "lisinopril"]): (RiskLevel.MEDIUM, "NSAID may reduce ACE inhibitor effect"),
     }
 
-    def analyze(self, medications: list[Medication], allergies: set[str]) -> dict:
+    def analyze(self, medications: list[Any], allergies: set[str]) -> dict:
         duplicate_alerts = self._find_duplicates(medications)
         interaction_alerts = self._find_interactions(medications)
         conflict_alerts = self._find_conflicting_dosages(medications)
@@ -27,8 +27,8 @@ class DrugInteractionService:
             "allergy_alerts": allergy_alerts,
         }
 
-    def _find_duplicates(self, medications: list[Medication]) -> list[dict]:
-        grouped: dict[str, list[Medication]] = defaultdict(list)
+    def _find_duplicates(self, medications: list[Any]) -> list[dict]:
+        grouped: dict[str, list[Any]] = defaultdict(list)
         for med in medications:
             grouped[med.name.lower()].append(med)
 
@@ -56,7 +56,7 @@ class DrugInteractionService:
                 )
         return alerts
 
-    def _find_interactions(self, medications: list[Medication]) -> list[dict]:
+    def _find_interactions(self, medications: list[Any]) -> list[dict]:
         names = {m.name.lower(): m for m in medications}
         alerts: list[dict] = []
         for pair, (risk, explanation) in self.INTERACTION_RULES.items():
@@ -89,7 +89,7 @@ class DrugInteractionService:
                 )
         return alerts
 
-    def _find_conflicting_dosages(self, medications: list[Medication]) -> list[dict]:
+    def _find_conflicting_dosages(self, medications: list[Any]) -> list[dict]:
         grouped: dict[str, set[str]] = defaultdict(set)
         for med in medications:
             if med.dosage:
@@ -112,7 +112,7 @@ class DrugInteractionService:
                 )
         return alerts
 
-    def _find_expired(self, medications: list[Medication]) -> list[dict]:
+    def _find_expired(self, medications: list[Any]) -> list[dict]:
         now = datetime.now(UTC).date()
         alerts: list[dict] = []
         for med in medications:
@@ -137,7 +137,7 @@ class DrugInteractionService:
                 )
         return alerts
 
-    def _find_allergy_conflicts(self, medications: list[Medication], allergies: set[str]) -> list[dict]:
+    def _find_allergy_conflicts(self, medications: list[Any], allergies: set[str]) -> list[dict]:
         alerts: list[dict] = []
         allergy_lc = {a.lower() for a in allergies}
         for med in medications:
