@@ -1,12 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_session
 from app.core.exceptions import NotFoundException
+from app.core.templates import templates
 from app.models.user import User
-from app.schemas.document import DocumentOut, DocumentResponse, DocumentUploadItem, DocumentUploadResponse
+from app.schemas.document import DocumentOut, DocumentUploadItem, DocumentUploadResponse
 from app.services.document_service import DocumentService
 from app.services.storage_service import LocalStorageService
 
@@ -49,15 +51,20 @@ async def list_documents(
     }) for d in docs]
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{document_id}", response_class=HTMLResponse)
 async def get_document(
+    request: Request,
     document_id: uuid.UUID,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> DocumentResponse:
+) -> HTMLResponse:
     service = DocumentService(session, LocalStorageService())
     doc = await service.get_document(user.id, document_id)
     if not doc:
         raise NotFoundException("Document not found")
 
-    return doc
+    return templates.TemplateResponse(
+        request=request,
+        name="document_detail.html",
+        context={"document": doc},
+    )

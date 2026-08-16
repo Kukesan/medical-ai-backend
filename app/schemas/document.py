@@ -38,6 +38,7 @@ class DocumentResponse(ORMBaseSchema):
     visit_date: date | None = None
     doctor_name: str | None = None
     hospital_name: str | None = None
-    medications: list[ExtractedMedication]
-    lab_results: list[ExtractedLabResult]
-    diagnosis_text: str | None = None
+    # medications: list[ExtractedMedication]
+    # lab_results: list[ExtractedLabResult]
+    # diagnosis_text: str | None = None
+    extraction_result: dict | None = None

@@ -115,18 +115,19 @@ class DocumentService:
         ocr_service,
         embedding_formatter_service: EmbeddingsFormatterService,
     ) -> None:
+        extraction_service = ExtractionService()
+
         ocr_result: dict = await ocr_service.extract_text(file_path)
         doc.ocr_text = ocr_result.get("text", "")
         doc.ocr_metadata = ocr_result.get("metadata", {})
         doc.embedding_text = await embedding_formatter_service.format_text_for_embedding(doc.ocr_text)
+        doc.extraction_result = await extraction_service.extract_to_schema_free(doc.ocr_text)
 
         if not doc.ocr_text:
             doc.processing_status = ProcessingStatus.FAILED
             return
 
         doc.processing_status = ProcessingStatus.OCR_COMPLETED
-
-        extraction_service = ExtractionService()
 
         structured_data = await extraction_service.extract_to_schema(doc.ocr_text, ExtractedMedicalVisit)
         validated_data = ExtractedMedicalVisit(**structured_data)
@@ -202,7 +203,8 @@ class DocumentService:
             visit_date=timeline_entry.visit_date if timeline_entry else None,
             doctor_name=timeline_entry.doctor_name if timeline_entry else None,
             hospital_name=timeline_entry.hospital_name if timeline_entry else None,
-            medications=medications,
-            lab_results=lab_results,
-            diagnosis_text=timeline_entry.diagnosis_text if timeline_entry else None,
+            # medications=medications,
+            # lab_results=lab_results,
+            # diagnosis_text=timeline_entry.diagnosis_text if timeline_entry else None,
+            extraction_result=document.extraction_result,
         )
