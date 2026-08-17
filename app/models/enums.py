@@ -46,3 +46,10 @@ class RecordStatus(StrEnum):
     VERIFIED = "verified"
     REJECTED = "rejected"
     CONFLICT_REQUIRES_REVIEW = "conflict_requires_review"
+
+
+class IntakeStatus(StrEnum):
+    AWAITING_CLARIFICATION = "awaiting_clarification"
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"

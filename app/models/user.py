@@ -25,3 +25,4 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     analysis_results = relationship("AnalysisResult", back_populates="user", cascade="all, delete-orphan")
     medical_records = relationship("MedicalRecord", back_populates="user", cascade="all, delete-orphan")
+    record_intake_sessions = relationship("RecordIntakeSession", back_populates="user", cascade="all, delete-orphan")

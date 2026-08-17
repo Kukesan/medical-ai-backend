@@ -5,6 +5,7 @@ from app.models.embedding import Embedding
 from app.models.medical_document import MedicalDocument
 from app.models.medical_record import MedicalRecord
 from app.models.patient_timeline import PatientTimeline
+from app.models.record_intake_session import RecordIntakeSession
 from app.models.record_type import RecordType
 from app.models.user import User
 
@@ -16,6 +17,7 @@ __all__ = [
     "MedicalDocument",
     "MedicalRecord",
     "PatientTimeline",
+    "RecordIntakeSession",
     "RecordType",
     "User",
 ]
