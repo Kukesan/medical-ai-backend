@@ -2,6 +2,7 @@ import logging
 import tempfile
 import uuid
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -10,13 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.emdeddings_formater.service import EmbeddingsFormatterService
 from app.ai.extraction.ocr_service import get_ocr_service
 from app.ai.extraction.service import ExtractionService
+from app.core.exceptions import ValidationException
 from app.models.enums import ProcessingStatus
 from app.models.medical_document import MedicalDocument
 from app.models.patient_timeline import PatientTimeline
+from app.models.record_type import RecordType
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.timeline_repository import TimelineRepository
 from app.schemas.document import DocumentResponse
-from app.schemas.extraction import ExtractedAllergy, ExtractedLabResult, ExtractedMedicalVisit, ExtractedMedication
+from app.schemas.extraction import ExtractedLabResult, ExtractedMedicalVisit, ExtractedMedication
 from app.services.analysis_service import AnalysisService
 from app.services.medical_record_service import MedicalRecordService
 from app.services.s3_service import S3Service
@@ -138,40 +141,99 @@ class DocumentService:
             )
         await self.timeline_repo.create(timeline_entry)
 
-        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedAllergy)
-        for item in structured_data:
-            if item.substance:
-                await self.record_service.create_from_extraction(
-                    user_id=user_id,
-                    record_type_code="ALLERGY",
-                    data=item.model_dump(mode="json", exclude={"confidence"}, exclude_none=True),
-                    source_document_id=doc.id,
-                    recorded_at=timeline_entry.visit_date,
-                )
-
-        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedLabResult)
-        for item in structured_data:
-            if item.test_name:
-                await self.record_service.create_from_extraction(
-                    user_id=user_id,
-                    record_type_code="LAB_RESULT",
-                    data=item.model_dump(mode="json", exclude={"confidence"}, exclude_none=True),
-                    source_document_id=doc.id,
-                    recorded_at=item.observed_date or timeline_entry.visit_date,
-                )
-
-        structured_data = await extraction_service.extract_to_schema_list(doc.ocr_text, ExtractedMedication)
-        for item in structured_data:
-            if item.name:
-                await self.record_service.create_from_extraction(
-                    user_id=user_id,
-                    record_type_code="MEDICATION",
-                    data=item.model_dump(mode="json", exclude={"confidence"}, exclude_none=True),
-                    source_document_id=doc.id,
-                    recorded_at=item.start_date or timeline_entry.visit_date,
-                )
+        await self._create_records_from_extraction(
+            doc=doc,
+            user_id=user_id,
+            extraction_service=extraction_service,
+            default_recorded_at=timeline_entry.visit_date,
+        )
 
         doc.processing_status = ProcessingStatus.EXTRACTED
+
+    async def _create_records_from_extraction(
+        self,
+        doc: MedicalDocument,
+        user_id: uuid.UUID,
+        extraction_service: ExtractionService,
+        default_recorded_at: date | None,
+    ) -> None:
+        if not doc.extraction_result:
+            return
+
+        record_type_service = self.record_service.record_type_service
+        known_record_types = await record_type_service.list_active()
+        known_record_types_payload = [
+            {
+                "code": record_type.code,
+                "name": record_type.name,
+                "description": record_type.description,
+                "identity_field": record_type.identity_field,
+                "schema": record_type.json_schema,
+            }
+            for record_type in known_record_types
+        ]
+
+        classified_records = await extraction_service.classify_extraction_result(
+            doc.extraction_result, known_record_types_payload
+        )
+
+        for entry in classified_records:
+            code = str(entry.get("record_type_code") or "").strip().upper()
+            data = entry.get("data")
+            if not code or not isinstance(data, dict) or not data:
+                continue
+
+            if entry.get("is_new_type"):
+                record_type = await record_type_service.get_or_create(
+                    code=code,
+                    name=entry.get("name") or code.replace("_", " ").title(),
+                    description=entry.get("description"),
+                    json_schema=entry.get("json_schema")
+                    or {"type": "object", "properties": {}, "additionalProperties": True},
+                    identity_field=entry.get("identity_field"),
+                )
+            else:
+                record_type = await record_type_service.get_by_code_any_status(code)
+                if record_type is None:
+                    logger.warning("Extraction referenced unknown record type code '%s', skipping", code)
+                    continue
+
+            filtered_data = self._filter_data_to_schema(record_type, data)
+            if not filtered_data:
+                continue
+
+            try:
+                record_type_service.validate_data(record_type, filtered_data)
+            except ValidationException:
+                logger.warning("Skipping '%s' record that failed schema validation", code)
+                continue
+
+            recorded_at = self._parse_date(entry.get("recorded_at")) or default_recorded_at
+
+            await self.record_service.create_from_extraction(
+                user_id=user_id,
+                record_type_code=record_type.code,
+                data=filtered_data,
+                source_document_id=doc.id,
+                recorded_at=recorded_at,
+            )
+
+    @staticmethod
+    def _filter_data_to_schema(record_type: RecordType, data: dict) -> dict:
+        schema = record_type.json_schema or {}
+        if schema.get("additionalProperties") is False:
+            allowed_fields = set(schema.get("properties", {}))
+            return {key: value for key, value in data.items() if key in allowed_fields}
+        return data
+
+    @staticmethod
+    def _parse_date(value: object) -> date | None:
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
 
     async def list_documents(self, user_id: uuid.UUID) -> list[MedicalDocument]:
         return list(await self.repo.list_by_user(user_id))

@@ -28,6 +28,12 @@ class MedicalRecordListItem(ORMBaseSchema):
     updated_at: datetime
 
 
+class MedicalRecordGroup(ORMBaseSchema):
+    record_type: str
+    record_type_name: str
+    records: list[MedicalRecordListItem]
+
+
 class MedicalRecordPatchRequest(ORMBaseSchema):
     data: dict[str, Any]
 

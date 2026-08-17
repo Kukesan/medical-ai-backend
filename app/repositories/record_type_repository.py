@@ -17,6 +17,10 @@ class RecordTypeRepository(BaseRepository[RecordType]):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_code_any_status(self, code: str) -> RecordType | None:
+        result = await self.session.execute(select(RecordType).where(RecordType.code == code.upper()))
+        return result.scalar_one_or_none()
+
     async def list_active(self) -> Sequence[RecordType]:
         result = await self.session.execute(
             select(RecordType).where(RecordType.is_active.is_(True)).order_by(RecordType.code)

@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
 from typing import Any, Literal
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictException, ForbiddenException, NotFoundException
 from app.models.enums import RecordStatus
 from app.models.medical_record import MedicalRecord
+from app.models.record_type import RecordType
 from app.repositories.medical_record_repository import MedicalRecordRepository
 from app.services.record_type_service import RecordTypeService
 
@@ -90,6 +92,23 @@ class MedicalRecordService:
             limit=limit,
             offset=offset,
         )
+
+    async def list_grouped_by_type(
+        self,
+        user_id: uuid.UUID,
+        status: RecordStatus | None = None,
+    ) -> dict[RecordType, list[MedicalRecord]]:
+        records = await self.list_records(user_id, status=status, limit=10_000)
+
+        records_by_type_id: dict[uuid.UUID, list[MedicalRecord]] = defaultdict(list)
+        for record in records:
+            records_by_type_id[record.record_type_id].append(record)
+
+        grouped: dict[RecordType, list[MedicalRecord]] = {}
+        for record_type_id, type_records in records_by_type_id.items():
+            record_type = await self.record_type_service.get_by_id(record_type_id)
+            grouped[record_type] = type_records
+        return grouped
 
     async def list_data_by_type(
         self,

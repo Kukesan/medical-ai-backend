@@ -29,6 +29,32 @@ class RecordTypeService:
     async def list_active(self) -> Sequence[RecordType]:
         return await self.repo.list_active()
 
+    async def get_by_code_any_status(self, code: str) -> RecordType | None:
+        return await self.repo.get_by_code_any_status(code)
+
+    async def get_or_create(
+        self,
+        code: str,
+        name: str,
+        description: str | None,
+        json_schema: dict[str, Any],
+        identity_field: str | None = None,
+    ) -> RecordType:
+        normalized_code = code.strip().upper()
+        record_type = await self.repo.get_by_code_any_status(normalized_code)
+        if record_type is not None:
+            return record_type
+
+        record_type = RecordType(
+            code=normalized_code,
+            name=name,
+            description=description,
+            json_schema=json_schema,
+            is_active=True,
+            identity_field=identity_field,
+        )
+        return await self.repo.create(record_type)
+
     def validate_data(self, record_type: RecordType, data: dict[str, Any]) -> None:
         validator = jsonschema.Draft202012Validator(record_type.json_schema)
         errors = sorted(validator.iter_errors(data), key=lambda e: list(e.path))

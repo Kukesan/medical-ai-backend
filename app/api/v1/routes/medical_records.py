@@ -10,6 +10,7 @@ from app.models.medical_record import MedicalRecord
 from app.models.record_type import RecordType
 from app.models.user import User
 from app.schemas.medical_record import (
+    MedicalRecordGroup,
     MedicalRecordListItem,
     MedicalRecordPatchRequest,
     ResolveConflictRequest,
@@ -59,6 +60,25 @@ async def list_medical_records(
             type_cache[record.record_type_id] = await type_service.get_by_id(record.record_type_id)
         items.append(_to_list_item(record, type_cache[record.record_type_id]))
     return items
+
+
+@router.get("/grouped", response_model=list[MedicalRecordGroup])
+async def list_medical_records_grouped(
+    status: RecordStatus | None = Query(None),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    record_service = MedicalRecordService(session)
+
+    grouped = await record_service.list_grouped_by_type(user.id, status=status)
+    return [
+        MedicalRecordGroup(
+            record_type=record_type.code,
+            record_type_name=record_type.name,
+            records=[_to_list_item(record, record_type) for record in records],
+        )
+        for record_type, records in grouped.items()
+    ]
 
 
 @router.get("/{record_id}", response_model=MedicalRecordListItem)
