@@ -3,6 +3,7 @@ from pathlib import Path
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
@@ -45,3 +46,9 @@ class S3Service:
     async def download_object(self, key: str) -> bytes:
         response = await asyncio.to_thread(self.client.get_object, Bucket=self.bucket, Key=key)
         return await asyncio.to_thread(response["Body"].read)
+
+    async def head_object(self, key: str) -> dict | None:
+        try:
+            return await asyncio.to_thread(self.client.head_object, Bucket=self.bucket, Key=key)
+        except ClientError:
+            return None

@@ -34,7 +34,6 @@ class ConfirmUploadRequest(ORMBaseSchema):
 class ConfirmUploadResponse(ORMBaseSchema):
     document_id: str
     processing_status: ProcessingStatus
-    ocr_text: str
     file_size: int
 
 

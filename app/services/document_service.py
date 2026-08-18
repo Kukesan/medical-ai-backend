@@ -1,5 +1,4 @@
 import logging
-import tempfile
 import uuid
 from collections.abc import Sequence
 from datetime import date
@@ -92,26 +91,19 @@ class DocumentService:
         docs: list[MedicalDocument] = []
         failed: list[str] = []
 
-        ocr_service = get_ocr_service()
-        embedding_formatter_service = EmbeddingsFormatterService()
         for document_id in document_ids:
             doc = await self.repo.get_by_user_and_id(user_id, document_id)
             if not doc:
                 failed.append(str(document_id))
                 continue
 
-            file_bytes = await s3.download_object(doc.file_path)
-            doc.file_size = len(file_bytes)
+            head = await s3.head_object(doc.file_path)
+            if head is None:
+                failed.append(str(document_id))
+                continue
 
-            suffix = Path(doc.file_name or "file").suffix
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                tmp.write(file_bytes)
-                tmp_path = Path(tmp.name)
-
-            try:
-                await self._extract_document(doc, tmp_path, user_id, ocr_service, embedding_formatter_service)
-            finally:
-                tmp_path.unlink(missing_ok=True)
+            doc.file_size = head.get("ContentLength", doc.file_size)
+            doc.processing_status = ProcessingStatus.UPLOADED
 
             docs.append(doc)
 

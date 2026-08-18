@@ -58,7 +58,6 @@ async def confirm_upload(
             ConfirmUploadResponse(
                 document_id=str(doc.id),
                 processing_status=doc.processing_status,
-                ocr_text=doc.ocr_text or "",
                 file_size=doc.file_size,
             )
             for doc in docs
