@@ -58,9 +58,11 @@ class DocumentService:
             file_size = file.file.tell()
             file.file.seek(0)
 
-            saved_path: Path = await self.storage.save_upload(str(user_id), file)
+            document_id = uuid.uuid4()
+            saved_path: Path = await self.storage.save_upload(str(user_id), str(document_id), file)
 
             doc = MedicalDocument(
+                id=document_id,
                 user_id=user_id,
                 file_name=file.filename or saved_path.name,
                 file_path=str(saved_path),
@@ -84,31 +86,40 @@ class DocumentService:
 
         return docs, failed
 
-    async def confirm_s3_upload(
-        self, user_id: uuid.UUID, document_id: uuid.UUID, s3: S3Service
-    ) -> MedicalDocument | None:
-        doc = await self.repo.get_by_user_and_id(user_id, document_id)
-        if not doc:
-            return None
+    async def confirm_s3_uploads(
+        self, user_id: uuid.UUID, document_ids: Sequence[uuid.UUID], s3: S3Service
+    ) -> tuple[list[MedicalDocument], list[str]]:
+        docs: list[MedicalDocument] = []
+        failed: list[str] = []
 
-        file_bytes = await s3.download_object(doc.file_path)
-        doc.file_size = len(file_bytes)
+        ocr_service = get_ocr_service()
+        embedding_formatter_service = EmbeddingsFormatterService()
+        for document_id in document_ids:
+            doc = await self.repo.get_by_user_and_id(user_id, document_id)
+            if not doc:
+                failed.append(str(document_id))
+                continue
 
-        suffix = Path(doc.file_name or "file").suffix
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = Path(tmp.name)
+            file_bytes = await s3.download_object(doc.file_path)
+            doc.file_size = len(file_bytes)
 
-        try:
-            ocr_service = get_ocr_service()
-            embedding_formatter_service = EmbeddingsFormatterService()
-            await self._extract_document(doc, tmp_path, user_id, ocr_service, embedding_formatter_service)
-        finally:
-            tmp_path.unlink(missing_ok=True)
+            suffix = Path(doc.file_name or "file").suffix
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(file_bytes)
+                tmp_path = Path(tmp.name)
+
+            try:
+                await self._extract_document(doc, tmp_path, user_id, ocr_service, embedding_formatter_service)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+
+            docs.append(doc)
 
         await self.session.commit()
-        await self.session.refresh(doc)
-        return doc
+        for doc in docs:
+            await self.session.refresh(doc)
+
+        return docs, failed
 
     async def _extract_document(
         self,

@@ -9,6 +9,8 @@ from app.core.dependencies import get_current_user, get_session
 from app.core.exceptions import NotFoundException
 from app.models.user import User
 from app.schemas.s3_document import (
+    ConfirmUploadBatchResponse,
+    ConfirmUploadRequest,
     ConfirmUploadResponse,
     PresignedEditRequest,
     PresignedUploadRequest,
@@ -40,22 +42,28 @@ async def create_upload_url(
     )
 
 
-@router.post("/{document_id}/confirm-upload", response_model=ConfirmUploadResponse)
+@router.post("/confirm-upload", response_model=ConfirmUploadBatchResponse)
 async def confirm_upload(
-    document_id: uuid.UUID,
+    data: ConfirmUploadRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ConfirmUploadResponse:
+) -> ConfirmUploadBatchResponse:
     service = DocumentService(session, LocalStorageService())
-    doc = await service.confirm_s3_upload(user.id, document_id, S3Service())
-    if not doc:
+    docs, failed = await service.confirm_s3_uploads(user.id, data.document_ids, S3Service())
+    if not docs and not failed:
         raise NotFoundException("Document not found")
 
-    return ConfirmUploadResponse(
-        document_id=str(doc.id),
-        processing_status=doc.processing_status,
-        ocr_text=doc.ocr_text or "",
-        file_size=doc.file_size,
+    return ConfirmUploadBatchResponse(
+        documents=[
+            ConfirmUploadResponse(
+                document_id=str(doc.id),
+                processing_status=doc.processing_status,
+                ocr_text=doc.ocr_text or "",
+                file_size=doc.file_size,
+            )
+            for doc in docs
+        ],
+        failed=failed,
     )
 
 

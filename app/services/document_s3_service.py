@@ -18,8 +18,10 @@ class DocumentS3Service:
     async def create_upload_url(
         self, user_id: uuid.UUID, data: PresignedUploadRequest
     ) -> tuple[MedicalDocument, str]:
-        key = self.s3.build_key(str(user_id), data.file_name)
+        document_id = uuid.uuid4()
+        key = self.s3.build_key(str(user_id), str(document_id), data.file_name)
         doc = MedicalDocument(
+            id=document_id,
             user_id=user_id,
             file_name=data.file_name,
             file_path=key,

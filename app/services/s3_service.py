@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from pathlib import Path
 
 import boto3
@@ -20,9 +19,9 @@ class S3Service:
             config=Config(signature_version="s3v4"),
         )
 
-    def build_key(self, user_id: str, file_name: str) -> str:
+    def build_key(self, user_id: str, document_id: str, file_name: str) -> str:
         suffix = Path(file_name or "file").suffix.lower()
-        return f"documents/{user_id}/{uuid.uuid4()}{suffix}"
+        return f"documents/{user_id}/{document_id}{suffix}"
 
     def generate_upload_url(
         self, key: str, content_type: str, expires_in: int | None = None
