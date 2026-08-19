@@ -27,6 +27,11 @@ class DocumentUploadResponse(ORMBaseSchema):
     uploaded: list[DocumentUploadItem]
     failed: list[str] = Field(default_factory=list)
 
+class DocumentExtractResponse(ORMBaseSchema):
+    status: str
+    message: str
+
+
 class DocumentResponse(ORMBaseSchema):
     id: str
     file_name: str

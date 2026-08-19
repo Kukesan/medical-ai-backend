@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.emdeddings_formater.service import EmbeddingsFormatterService
 from app.ai.extraction.ocr_service import get_ocr_service
 from app.ai.extraction.service import ExtractionService
-from app.core.exceptions import ValidationException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.models.enums import ProcessingStatus
 from app.models.medical_document import MedicalDocument
 from app.models.patient_timeline import PatientTimeline
@@ -121,18 +121,27 @@ class DocumentService:
         ocr_service,
         embedding_formatter_service: EmbeddingsFormatterService,
     ) -> None:
-        extraction_service = ExtractionService()
-
         ocr_result: dict = await ocr_service.extract_text(file_path)
         doc.ocr_text = ocr_result.get("text", "")
         doc.ocr_metadata = ocr_result.get("metadata", {})
-        doc.embedding_text = await embedding_formatter_service.format_text_for_embedding(doc.ocr_text)
-        doc.extraction_result = await extraction_service.extract_to_schema_free(doc.ocr_text)
 
         if not doc.ocr_text:
             doc.processing_status = ProcessingStatus.FAILED
             return
 
+        await self._run_extraction_pipeline(doc, user_id, embedding_formatter_service)
+
+    async def _run_extraction_pipeline(
+        self,
+        doc: MedicalDocument,
+        user_id: uuid.UUID,
+        embedding_formatter_service: EmbeddingsFormatterService | None = None,
+    ) -> None:
+        embedding_formatter_service = embedding_formatter_service or EmbeddingsFormatterService()
+        extraction_service = ExtractionService()
+
+        doc.embedding_text = await embedding_formatter_service.format_text_for_embedding(doc.ocr_text)
+        doc.extraction_result = await extraction_service.extract_to_schema_free(doc.ocr_text)
         doc.processing_status = ProcessingStatus.OCR_COMPLETED
 
         structured_data = await extraction_service.extract_to_schema(doc.ocr_text, ExtractedMedicalVisit)
@@ -152,6 +161,27 @@ class DocumentService:
         )
 
         doc.processing_status = ProcessingStatus.EXTRACTED
+
+    async def extract_from_existing_ocr(self, document_id: uuid.UUID) -> MedicalDocument:
+        doc = await self.repo.get(document_id)
+        if doc is None:
+            raise NotFoundException(f"Document {document_id} not found")
+
+        if doc.processing_status in (ProcessingStatus.EXTRACTED, ProcessingStatus.ANALYZED):
+            logger.info(
+                "Document %s already extracted (status=%s); skipping", document_id, doc.processing_status
+            )
+            return doc
+
+        if not doc.ocr_text:
+            doc.processing_status = ProcessingStatus.FAILED
+            await self.session.commit()
+            raise ValidationException(f"Document {document_id} has no OCR text to extract from")
+
+        await self._run_extraction_pipeline(doc, doc.user_id)
+        await self.session.commit()
+        await self.session.refresh(doc)
+        return doc
 
     async def _create_records_from_extraction(
         self,

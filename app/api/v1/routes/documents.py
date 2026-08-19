@@ -1,16 +1,20 @@
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_session
+from app.core.dependencies import get_current_user, get_session, verify_service_api_key
 from app.core.exceptions import NotFoundException
 from app.core.templates import templates
+from app.database.session import SessionLocal
 from app.models.user import User
-from app.schemas.document import DocumentOut, DocumentUploadItem, DocumentUploadResponse
+from app.schemas.document import DocumentExtractResponse, DocumentOut, DocumentUploadItem, DocumentUploadResponse
 from app.services.document_service import DocumentService
 from app.services.storage_service import LocalStorageService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents")
 
@@ -31,6 +35,24 @@ async def upload_documents(
         ],
         failed=failed,
     )
+
+
+@router.post("/{document_id}/extract", response_model=DocumentExtractResponse)
+async def extract_document(
+    document_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(verify_service_api_key),
+) -> DocumentExtractResponse:
+    async def _runner() -> None:
+        async with SessionLocal() as session:
+            service = DocumentService(session, LocalStorageService())
+            try:
+                await service.extract_from_existing_ocr(document_id)
+            except Exception:
+                logger.exception("Background extraction failed for document %s", document_id)
+
+    background_tasks.add_task(_runner)
+    return DocumentExtractResponse(status="accepted", message="Extraction started")
 
 
 @router.get("", response_model=list[DocumentOut])
