@@ -226,6 +226,23 @@ async def test_patch_on_rejected_record_raises_conflict() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_on_record_with_source_document_raises_conflict() -> None:
+    allergy_type = _allergy_type()
+    service = _service([allergy_type])
+    user_id = uuid.uuid4()
+
+    record = await service.create_from_extraction(
+        user_id=user_id,
+        record_type_code="ALLERGY",
+        data={"substance": "Penicillin"},
+        source_document_id=uuid.uuid4(),
+    )
+
+    with pytest.raises(ConflictException):
+        await service.patch(user_id, record.id, {"substance": "Amoxicillin"})
+
+
+@pytest.mark.asyncio
 async def test_verify_succeeds_from_needs_review() -> None:
     allergy_type = _allergy_type()
     service = _service([allergy_type])

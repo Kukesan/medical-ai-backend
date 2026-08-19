@@ -129,6 +129,8 @@ class MedicalRecordService:
         record = await self.get(user_id, record_id)
         if record.status == RecordStatus.REJECTED:
             raise ConflictException("Cannot edit a rejected record")
+        if record.source_document_id is not None:
+            raise ConflictException("Cannot directly edit a record derived from a source document")
 
         record_type = await self.record_type_service.get_by_id(record.record_type_id)
         merged = {**record.data, **data}
