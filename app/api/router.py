@@ -6,13 +6,14 @@ from app.api.v1.routes import (
     chat,
     consultant,
     dashboard,
-    documents,
+    doctor_recommendation,
     document_s3,
+    documents,
     medical_records,
     record_intake,
     record_types,
-    user,
     timeline,
+    user,
 )
 
 api_router = APIRouter()
@@ -28,3 +29,4 @@ api_router.include_router(timeline.router, tags=["timeline"])
 api_router.include_router(medical_records.router, tags=["medical-records"])
 api_router.include_router(record_types.router, tags=["record-types"])
 api_router.include_router(record_intake.router, tags=["record-intake"])
+api_router.include_router(doctor_recommendation.router, tags=["doctor-recommendation"])

@@ -14,7 +14,7 @@ from app.services.extraction_service import ExtractionService
 from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.ocr_service import OCRService
-from app.schemas.medication_analyze import MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicationAlert, MedicationReviewResult
+from app.schemas.medication_analyze import MedicalAnalysisListResponse, MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicationAlert, MedicationReviewResult
 
 class AnalysisService:
     def __init__(self, session: AsyncSession) -> None:
@@ -127,20 +127,22 @@ class AnalysisService:
 
         await self.session.commit()
 
-    async def get_analysis_results(self, user_id: uuid.UUID) -> list[MedicalAnalysisReponse]:
+    async def get_analysis_results(self, user_id: uuid.UUID) -> list[MedicalAnalysisListResponse]:
         results = await self.analysis_repo.list_by_user(user_id)
-        return [MedicalAnalysisReponse(
+        results = sorted(
+            results,
+            key=lambda result: (result.created_at is not None, result.created_at),
+            reverse=True,
+        )
+        
+        return [MedicalAnalysisListResponse(
             id=result.id,
             user_id=result.user_id,
             category=result.category,
             risk_level=result.risk_level,
             title=result.title,
             description=result.description,
-            clinical_reason=result.clinical_reason,
             confidence=result.confidence,
-            timeline=result.timeline,
-            evidence=result.evidence,
-            recommendation=result.recommendation,
             created_at=result.created_at,
         ) for result in results]
 

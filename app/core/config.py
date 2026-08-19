@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     s3_bucket_name: str = Field(default="", alias="S3_BUCKET_NAME")
     presigned_url_expire_seconds: int = Field(default=3600, alias="PRESIGNED_URL_EXPIRE_SECONDS")
 
+    google_places_api_key: str = Field(default="", alias="GOOGLE_PLACES_API_KEY")
+
     @property
     def local_storage_path(self) -> Path:
         path = Path(self.local_storage_dir)
