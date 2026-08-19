@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import Field
 
@@ -30,6 +31,10 @@ class DocumentUploadResponse(ORMBaseSchema):
 class DocumentExtractResponse(ORMBaseSchema):
     status: str
     message: str
+
+
+class DocumentExtractionUpdateRequest(ORMBaseSchema):
+    extraction_result: dict[str, Any]
 
 
 class DocumentResponse(ORMBaseSchema):

@@ -57,6 +57,8 @@ ProcessingStatus:
 - ocr_completed
 - extracted
 - analyzed
+- user_edited (user edited the extracted data; awaiting re-acceptance)
+- accepted (user accepted the extracted data)
 - failed
 
 RiskLevel:
@@ -197,6 +199,82 @@ Path params:
 - document_id: UUID
 
 Response 200: same shape as list item above.
+
+Note: this route renders a server-side HTML page, not JSON. Frontends should use
+`GET /api/v1/documents/{document_id}/detail` below to fetch the document as JSON.
+
+### GET /api/v1/documents/{document_id}/detail
+
+Protected.
+
+Path params:
+
+- document_id: UUID
+
+Response 200:
+
+{
+  "id": "uuid",
+  "file_name": "report.pdf",
+  "mime_type": "application/pdf",
+  "file_size": 123456,
+  "document_type": "lab_report",
+  "processing_status": "extracted",
+  "created_at": "2026-08-02T10:00:00Z",
+  "visit_date": "2026-07-15",
+  "doctor_name": "Dr. Example",
+  "hospital_name": "City Hospital",
+  "extraction_result": { "...": "raw AI extraction JSON, or null" }
+}
+
+### PATCH /api/v1/documents/{document_id}/extraction
+
+Protected. Lets the user edit the extracted data for a document and save it. Available any time after
+extraction has completed (including after the document has been accepted) — editing is always allowed.
+
+Path params:
+
+- document_id: UUID
+
+Request body:
+
+{
+  "extraction_result": { "...": "edited extraction JSON" }
+}
+
+Response 200: document detail, with `processing_status` set to `user_edited`.
+
+{
+  "id": "uuid",
+  "file_name": "report.pdf",
+  "mime_type": "application/pdf",
+  "file_size": 123456,
+  "document_type": "lab_report",
+  "processing_status": "user_edited",
+  "created_at": "2026-08-02T10:00:00Z",
+  "visit_date": "2026-07-15",
+  "doctor_name": "Dr. Example",
+  "hospital_name": "City Hospital",
+  "extraction_result": { "...": "edited extraction JSON" }
+}
+
+Errors:
+
+- 422: document has not been extracted yet (still uploaded/ocr_completed/failed)
+
+### POST /api/v1/documents/{document_id}/accept
+
+Protected. Marks the extracted data for a document as accepted by the user.
+
+Path params:
+
+- document_id: UUID
+
+Response 200: document detail, same shape as PATCH above, with `processing_status` set to `accepted`.
+
+Errors:
+
+- 422: document has not been extracted yet (still uploaded/ocr_completed/failed)
 
 ## Analysis
 

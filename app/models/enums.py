@@ -14,6 +14,8 @@ class ProcessingStatus(StrEnum):
     OCR_COMPLETED = "ocr_completed"
     EXTRACTED = "extracted"
     ANALYZED = "analyzed"
+    USER_EDITED = "user_edited"
+    ACCEPTED = "accepted"
     FAILED = "failed"
 
 

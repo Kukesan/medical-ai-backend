@@ -10,7 +10,14 @@ from app.core.exceptions import NotFoundException
 from app.core.templates import templates
 from app.database.session import SessionLocal
 from app.models.user import User
-from app.schemas.document import DocumentExtractResponse, DocumentOut, DocumentUploadItem, DocumentUploadResponse
+from app.schemas.document import (
+    DocumentExtractionUpdateRequest,
+    DocumentExtractResponse,
+    DocumentOut,
+    DocumentResponse,
+    DocumentUploadItem,
+    DocumentUploadResponse,
+)
 from app.services.document_service import DocumentService
 from app.services.storage_service import LocalStorageService
 
@@ -55,6 +62,27 @@ async def extract_document(
     return DocumentExtractResponse(status="accepted", message="Extraction started")
 
 
+@router.patch("/{document_id}/extraction", response_model=DocumentResponse)
+async def update_document_extraction(
+    document_id: uuid.UUID,
+    payload: DocumentExtractionUpdateRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> DocumentResponse:
+    service = DocumentService(session, LocalStorageService())
+    return await service.update_extraction_result(user.id, document_id, payload.extraction_result)
+
+
+@router.post("/{document_id}/accept", response_model=DocumentResponse)
+async def accept_document(
+    document_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> DocumentResponse:
+    service = DocumentService(session, LocalStorageService())
+    return await service.accept_document(user.id, document_id)
+
+
 @router.get("", response_model=list[DocumentOut])
 async def list_documents(
     user: User = Depends(get_current_user),
@@ -71,6 +99,19 @@ async def list_documents(
         "processing_status": d.processing_status,
         "created_at": d.created_at,
     }) for d in docs]
+
+
+@router.get("/{document_id}/detail", response_model=DocumentResponse)
+async def get_document_detail(
+    document_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> DocumentResponse:
+    service = DocumentService(session, LocalStorageService())
+    doc = await service.get_document(user.id, document_id)
+    if not doc:
+        raise NotFoundException("Document not found")
+    return doc
 
 
 @router.get("/{document_id}", response_class=HTMLResponse)

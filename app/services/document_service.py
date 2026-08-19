@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 
 class DocumentService:
     ALLOWED_MIME_TYPES = {"application/pdf", "image/png", "image/jpeg"}
+    NOT_YET_EXTRACTED_STATUSES = (
+        ProcessingStatus.UPLOADED,
+        ProcessingStatus.OCR_COMPLETED,
+        ProcessingStatus.FAILED,
+    )
 
     def __init__(self, session: AsyncSession, storage: LocalStorageService) -> None:
         self.session = session
@@ -167,7 +172,12 @@ class DocumentService:
         if doc is None:
             raise NotFoundException(f"Document {document_id} not found")
 
-        if doc.processing_status in (ProcessingStatus.EXTRACTED, ProcessingStatus.ANALYZED):
+        if doc.processing_status in (
+            ProcessingStatus.EXTRACTED,
+            ProcessingStatus.ANALYZED,
+            ProcessingStatus.USER_EDITED,
+            ProcessingStatus.ACCEPTED,
+        ):
             logger.info(
                 "Document %s already extracted (status=%s); skipping", document_id, doc.processing_status
             )
@@ -303,3 +313,36 @@ class DocumentService:
             # diagnosis_text=timeline_entry.diagnosis_text if timeline_entry else None,
             extraction_result=document.extraction_result,
         )
+
+    async def update_extraction_result(
+        self, user_id: uuid.UUID, document_id: uuid.UUID, extraction_result: dict
+    ) -> DocumentResponse:
+        doc = await self.repo.get_by_user_and_id(user_id, document_id)
+        if not doc:
+            raise NotFoundException(f"Document {document_id} not found")
+        if doc.processing_status in self.NOT_YET_EXTRACTED_STATUSES:
+            raise ValidationException("Document has not been extracted yet")
+
+        doc.extraction_result = extraction_result
+        doc.processing_status = ProcessingStatus.USER_EDITED
+        await self.session.commit()
+
+        response = await self.get_document(user_id, document_id)
+        if response is None:
+            raise NotFoundException(f"Document {document_id} not found")
+        return response
+
+    async def accept_document(self, user_id: uuid.UUID, document_id: uuid.UUID) -> DocumentResponse:
+        doc = await self.repo.get_by_user_and_id(user_id, document_id)
+        if not doc:
+            raise NotFoundException(f"Document {document_id} not found")
+        if doc.processing_status in self.NOT_YET_EXTRACTED_STATUSES:
+            raise ValidationException("Document has not been extracted yet")
+
+        doc.processing_status = ProcessingStatus.ACCEPTED
+        await self.session.commit()
+
+        response = await self.get_document(user_id, document_id)
+        if response is None:
+            raise NotFoundException(f"Document {document_id} not found")
+        return response
