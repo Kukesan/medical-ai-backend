@@ -14,12 +14,9 @@ class UserService:
         return UserProfileResponse.model_validate(user)
 
     async def create_profile(self, user: User, profile_data: UserProfileCreateRequest) -> UserProfileResponse:
-        user.age = profile_data.age
-        user.height = profile_data.height
-        user.weight = profile_data.weight
-        user.blood_group = profile_data.blood_group
-        user.pressure = profile_data.pressure
-        user.blood_sugar = profile_data.blood_sugar
+        user.date_of_birth = profile_data.date_of_birth
+        user.bio = profile_data.bio
+        user.notes = profile_data.notes
         await self.session.commit()
         await self.session.refresh(user)
         return UserProfileResponse.model_validate(user)

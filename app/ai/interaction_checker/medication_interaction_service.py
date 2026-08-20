@@ -1,4 +1,4 @@
-from app.schemas.medication_analyze import MedicalDocumentInput, MedicationReviewResult
+from app.schemas.medication_analyze import MedicalDocumentInput, MedicalRecordInput, MedicationReviewResult
 from app.core.config import settings
 from openai import AsyncOpenAI
 
@@ -8,16 +8,19 @@ class MedicationInteractionService:
 
     def build_medication_review_prompt(
         self,
-        documents: list[MedicalDocumentInput]
+        documents: list[MedicalDocumentInput],
+        records: list[MedicalRecordInput] | None = None,
     ) -> tuple[str, str]:
 
         system_prompt = """
             You are an expert clinical pharmacist and medication safety AI.
 
-            You analyze multiple medical documents across time.
+            You analyze multiple medical documents and user-entered medical
+            records across time.
 
             Your goal is to identify medication safety concerns by comparing
-            current and historical medical records.
+            current and historical medical records, whether they came from an
+            uploaded document or were entered directly by the patient.
 
 
             Perform these checks:
@@ -116,8 +119,12 @@ class MedicationInteractionService:
             - Do not recommend stopping medication.
             - Do not modify prescriptions.
             - Do not invent information.
-            - Use only provided documents.
+            - Use only the provided documents and user-entered records.
             - Mention uncertainty when information is incomplete.
+            - For every alert, cite the evidence it is based on: set
+              "document_id" when the evidence came from an uploaded document,
+              or "record_id" and "record_type" when it came from a
+              user-entered record. Only fill in the field that applies.
 
 
             Return JSON only:
@@ -158,6 +165,8 @@ class MedicationInteractionService:
                 "evidence":[
                 {
                     "document_id":"",
+                    "record_id":"",
+                    "record_type":"",
                     "snippet":""
                 }
                 ],
@@ -187,10 +196,30 @@ class MedicationInteractionService:
                     ]
                 )
 
+        user_records = "\n\n".join(
+                    [
+                        f"""
+                            RECORD ID:
+                            {record.record_id}
+
+                            RECORD TYPE:
+                            {record.record_type}
+
+                            DATE:
+                            {record.recorded_at}
+
+                            DATA:
+                            {record.data}
+                            """
+                        for record in (records or [])
+                    ]
+                )
+
 
         user_prompt = f"""
 
-                            Review this patient's complete medical document history.
+                            Review this patient's complete medical history, combining
+                            uploaded documents with records the patient entered directly.
 
                             Medical Documents:
 
@@ -198,8 +227,14 @@ class MedicationInteractionService:
                             {medical_history}
                             --------------------
 
+                            User-Entered Records:
 
-                            Analyze medication safety across all documents.
+                            --------------------
+                            {user_records}
+                            --------------------
+
+
+                            Analyze medication safety across all documents and records.
 
                             Return JSON only.
 
@@ -210,12 +245,13 @@ class MedicationInteractionService:
 
     async def review_medication_history(
         self,
-        documents: list[MedicalDocumentInput]
+        documents: list[MedicalDocumentInput],
+        records: list[MedicalRecordInput] | None = None,
     ) -> MedicationReviewResult:
 
         system_prompt, user_prompt = (
             self.build_medication_review_prompt(
-                documents
+                documents, records
             )
         )
 

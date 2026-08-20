@@ -6,14 +6,16 @@ from app.ai.interaction_checker.medication_interaction_service import Medication
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis_result import AnalysisResult
-from app.models.enums import AlertCategory, ProcessingStatus, RiskLevel
+from app.models.enums import AlertCategory, ProcessingStatus, RecordStatus, RiskLevel
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.document_repository import DocumentRepository
 from app.services.extraction_service import ExtractionService
 from app.services.lab_trend_service import LabTrendService
+from app.services.medical_record_service import MedicalRecordService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.ocr_service import OCRService
-from app.schemas.medication_analyze import MedicalAnalysisListResponse, MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicationAlert, MedicationReviewResult
+from app.services.record_type_service import RecordTypeService
+from app.schemas.medication_analyze import MedicalAnalysisListResponse, MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicalRecordInput, MedicationAlert, MedicationReviewResult
 
 class AnalysisService:
     def __init__(self, session: AsyncSession) -> None:
@@ -25,6 +27,8 @@ class AnalysisService:
         self.extractor = ExtractionService()
         self.medication = MedicationAnalysisService(session)
         self.lab = LabTrendService(session)
+        self.record_service = MedicalRecordService(session)
+        self.record_type_service = RecordTypeService(session)
 
     @staticmethod
     def _coerce_alert_category(value: str | None) -> AlertCategory:
@@ -56,6 +60,8 @@ class AnalysisService:
             evidence.append(
                 {
                     "document_id": item.get("source_document_id"),
+                    "record_id": item.get("record_id"),
+                    "record_type": item.get("record_type"),
                     "snippet": item.get("snippet", ""),
                 }
             )
@@ -123,6 +129,25 @@ class AnalysisService:
 
         await self.session.commit()
 
+    async def get_important_alerts(self, user_id: uuid.UUID) -> list[MedicalAnalysisListResponse]:
+        results = await self.analysis_repo.list_important_by_user(user_id)
+        results = sorted(
+            results,
+            key=lambda result: (result.created_at is not None, result.created_at),
+            reverse=True,
+        )
+
+        return [MedicalAnalysisListResponse(
+            id=result.id,
+            user_id=result.user_id,
+            category=result.category,
+            risk_level=result.risk_level,
+            title=result.title,
+            description=result.description,
+            confidence=result.confidence,
+            created_at=result.created_at,
+        ) for result in results]
+
     async def get_analysis_results(self, user_id: uuid.UUID) -> list[MedicalAnalysisListResponse]:
         results = await self.analysis_repo.list_by_user(user_id)
         results = sorted(
@@ -130,7 +155,7 @@ class AnalysisService:
             key=lambda result: (result.created_at is not None, result.created_at),
             reverse=True,
         )
-        
+
         return [MedicalAnalysisListResponse(
             id=result.id,
             user_id=result.user_id,
@@ -164,16 +189,32 @@ class AnalysisService:
     async def analyze_medication_interactions(self, user_id: uuid.UUID) -> dict:
         medication_interaction_service = MedicationInteractionService()
         documents = await self.doc_repo.list_by_user(user_id)
-        if documents:
-            document_inputs: list[MedicalDocumentInput] = [
-                MedicalDocumentInput(
-                    document_id=document.id,
-                    document_date=document.created_at.isoformat() if document.created_at else None,
-                    ocr_text=document.ocr_text or "",
-                )
-                for document in documents
-            ]
-            medication_review_result: MedicationReviewResult = await medication_interaction_service.review_medication_history(document_inputs)
+        document_inputs: list[MedicalDocumentInput] = [
+            MedicalDocumentInput(
+                document_id=document.id,
+                document_date=document.created_at.isoformat() if document.created_at else None,
+                ocr_text=document.ocr_text or "",
+            )
+            for document in documents
+        ]
+
+        records = await self.record_service.list_records(user_id, limit=10_000)
+        record_types_by_id = {record_type.id: record_type for record_type in await self.record_type_service.list_active()}
+        record_inputs: list[MedicalRecordInput] = [
+            MedicalRecordInput(
+                record_id=record.id,
+                record_type=record_types_by_id[record.record_type_id].code
+                if record.record_type_id in record_types_by_id
+                else None,
+                recorded_at=record.recorded_at.isoformat() if record.recorded_at else None,
+                data=record.data,
+            )
+            for record in records
+            if record.status != RecordStatus.REJECTED
+        ]
+
+        if document_inputs or record_inputs:
+            medication_review_result: MedicationReviewResult = await medication_interaction_service.review_medication_history(document_inputs, record_inputs)
             if medication_review_result:
                 for alert in medication_review_result.alerts:
                     await self.analysis_repo.create(self._build_result_from_ai_alert(user_id, alert))

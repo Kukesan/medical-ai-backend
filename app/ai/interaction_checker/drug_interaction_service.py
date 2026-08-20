@@ -11,6 +11,17 @@ class DrugInteractionService:
         frozenset(["ibuprofen", "lisinopril"]): (RiskLevel.MEDIUM, "NSAID may reduce ACE inhibitor effect"),
     }
 
+    @staticmethod
+    def _evidence(med: Any, snippet: str) -> dict:
+        visit = med.visit
+        return {
+            "source_document_id": str(visit.document_id) if getattr(visit, "document_id", None) else None,
+            "record_id": str(visit.record_id) if getattr(visit, "record_id", None) else None,
+            "record_type": getattr(visit, "record_type", None),
+            "snippet": snippet,
+            "page": None,
+        }
+
     def analyze(self, medications: list[Any], allergies: set[str]) -> dict:
         duplicate_alerts = self._find_duplicates(medications)
         interaction_alerts = self._find_interactions(medications)
@@ -43,11 +54,7 @@ class DrugInteractionService:
                             "risk_level": RiskLevel.MEDIUM,
                             "explanation": "Potential duplicate therapy detected.",
                             "evidence": [
-                                {
-                                    "source_document_id": str(r.visit.document_id),
-                                    "snippet": f"{r.name} {r.dosage or ''} {r.frequency or ''}".strip(),
-                                    "page": None,
-                                }
+                                self._evidence(r, f"{r.name} {r.dosage or ''} {r.frequency or ''}".strip())
                                 for r in rows
                             ],
                             "confidence": 0.75,
@@ -72,16 +79,8 @@ class DrugInteractionService:
                             "risk_level": risk,
                             "explanation": explanation,
                             "evidence": [
-                                {
-                                    "source_document_id": str(med_a.visit.document_id),
-                                    "snippet": med_a.name,
-                                    "page": None,
-                                },
-                                {
-                                    "source_document_id": str(med_b.visit.document_id),
-                                    "snippet": med_b.name,
-                                    "page": None,
-                                },
+                                self._evidence(med_a, med_a.name),
+                                self._evidence(med_b, med_b.name),
                             ],
                             "confidence": 0.7,
                         },
@@ -125,11 +124,7 @@ class DrugInteractionService:
                             "risk_level": RiskLevel.LOW,
                             "explanation": "Prescription end date is in the past.",
                             "evidence": [
-                                {
-                                    "source_document_id": str(med.visit.document_id),
-                                    "snippet": f"End date {med.end_date.isoformat()}",
-                                    "page": None,
-                                }
+                                self._evidence(med, f"End date {med.end_date.isoformat()}")
                             ],
                             "confidence": 0.9,
                         },
@@ -150,11 +145,7 @@ class DrugInteractionService:
                             "risk_level": RiskLevel.HIGH,
                             "explanation": "Potential allergy conflict between known allergy and prescribed medicine.",
                             "evidence": [
-                                {
-                                    "source_document_id": str(med.visit.document_id),
-                                    "snippet": med.name,
-                                    "page": None,
-                                }
+                                self._evidence(med, med.name)
                             ],
                             "confidence": 0.85,
                         },

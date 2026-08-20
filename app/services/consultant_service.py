@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,12 +7,14 @@ from app.ai.consultant.service import ConsultantAIService
 from app.models.chat_message import ChatMessage
 from app.models.chat_session import ChatSession
 from app.models.enums import MessageRole
+from app.models.vitals import Vitals
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.consultant import ConversationListResponse
 from app.services.document_record_service import DocumentRecordService
 from app.services.medical_record_service import MedicalRecordService
+from app.services.vitals_service import VitalsService
 
 MAX_DOCUMENTS = 20
 MAX_CHARS_PER_DOCUMENT = 4000
@@ -26,6 +28,7 @@ class ConsultantService:
         self.record_service = MedicalRecordService(session)
         self.document_record_service = DocumentRecordService(session)
         self.document_repo = DocumentRepository(session)
+        self.vitals_service = VitalsService(session)
         self.ai = ConsultantAIService()
 
     async def ask(self, user_id: uuid.UUID, question: str, session_id: uuid.UUID | None = None) -> dict:
@@ -82,6 +85,7 @@ class ConsultantService:
 
     async def _build_patient_context(self, user_id: uuid.UUID) -> str:
         user = await self.user_repo.get(user_id)
+        latest_vitals = await self.vitals_service.get_latest(user_id)
         allergies = [
             *await self.record_service.list_data_by_type(user_id, "ALLERGY"),
             *await self.document_record_service.list_records(user_id, record_type_code="ALLERGY"),
@@ -96,7 +100,7 @@ class ConsultantService:
         ]
         documents = await self.document_repo.list_by_user(user_id)
 
-        sections: list[str] = [self._format_profile(user)]
+        sections: list[str] = [self._format_profile(user, latest_vitals)]
 
         sections.append(self._format_allergies(allergies))
         sections.append(self._format_vaccinations(vaccinations))
@@ -105,18 +109,34 @@ class ConsultantService:
 
         return "\n\n".join(sections)
 
-    def _format_profile(self, user) -> str:
+    def _format_profile(self, user, vitals: Vitals | None) -> str:
         if user is None:
             return "Patient Profile: unavailable"
-        return (
-            "Patient Profile:\n"
-            f"- Age: {user.age if user.age is not None else 'unknown'}\n"
-            f"- Height: {user.height if user.height is not None else 'unknown'}\n"
-            f"- Weight: {user.weight if user.weight is not None else 'unknown'}\n"
-            f"- Blood Group: {user.blood_group or 'unknown'}\n"
-            f"- Blood Pressure: {user.pressure or 'unknown'}\n"
-            f"- Blood Sugar: {user.blood_sugar if user.blood_sugar is not None else 'unknown'}"
-        )
+        age = self._calculate_age(user.date_of_birth)
+        lines = [
+            "Patient Profile:",
+            f"- Age: {age if age is not None else 'unknown'}",
+            f"- Height: {vitals.height if vitals and vitals.height is not None else 'unknown'}",
+            f"- Weight: {vitals.weight if vitals and vitals.weight is not None else 'unknown'}",
+            f"- Blood Group: {vitals.blood_group if vitals and vitals.blood_group else 'unknown'}",
+            f"- Blood Pressure: {vitals.pressure if vitals and vitals.pressure else 'unknown'}",
+            f"- Blood Sugar: {vitals.blood_sugar if vitals and vitals.blood_sugar is not None else 'unknown'}",
+        ]
+        if user.bio:
+            lines.append(f"- Bio: {user.bio}")
+        if user.notes:
+            lines.append(f"- Notes: {user.notes}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _calculate_age(date_of_birth: date | None) -> int | None:
+        if date_of_birth is None:
+            return None
+        today = datetime.now(UTC).date()
+        years = today.year - date_of_birth.year
+        if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
+            years -= 1
+        return years
 
     def _format_allergies(self, allergies) -> str:
         if not allergies:

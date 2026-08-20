@@ -31,7 +31,11 @@ class MedicationAnalysisService:
                 dosage=record.data.get("dosage"),
                 frequency=record.data.get("frequency"),
                 end_date=_parse_date(record.data.get("end_date")),
-                visit=SimpleNamespace(document_id=getattr(record, "source_document_id", None)),
+                visit=SimpleNamespace(
+                    document_id=getattr(record, "source_document_id", None),
+                    record_id=getattr(record, "id", None),
+                    record_type="MEDICATION",
+                ),
             )
             for record in medication_records
         ]
