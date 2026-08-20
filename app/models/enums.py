@@ -40,6 +40,11 @@ class MessageRole(StrEnum):
     SYSTEM = "system"
 
 
+class ChatContextType(StrEnum):
+    DOCUMENT = "document"
+    ANALYSIS_RESULT = "analysis_result"
+
+
 class RecordStatus(StrEnum):
     PROCESSING = "processing"
     EXTRACTED = "extracted"

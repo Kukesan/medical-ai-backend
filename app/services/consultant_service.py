@@ -4,10 +4,12 @@ from datetime import UTC, date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.consultant.service import ConsultantAIService
+from app.core.exceptions import NotFoundException, ValidationException
 from app.models.chat_message import ChatMessage
 from app.models.chat_session import ChatSession
-from app.models.enums import MessageRole
+from app.models.enums import ChatContextType, MessageRole
 from app.models.vitals import Vitals
+from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.user_repository import UserRepository
@@ -18,6 +20,7 @@ from app.services.vitals_service import VitalsService
 
 MAX_DOCUMENTS = 20
 MAX_CHARS_PER_DOCUMENT = 4000
+MAX_CHARS_GROUNDED_CONTEXT = 12000
 
 
 class ConsultantService:
@@ -28,25 +31,36 @@ class ConsultantService:
         self.record_service = MedicalRecordService(session)
         self.document_record_service = DocumentRecordService(session)
         self.document_repo = DocumentRepository(session)
+        self.analysis_repo = AnalysisRepository(session)
         self.vitals_service = VitalsService(session)
         self.ai = ConsultantAIService()
 
-    async def ask(self, user_id: uuid.UUID, question: str, session_id: uuid.UUID | None = None) -> dict:
+    async def ask(
+        self,
+        user_id: uuid.UUID,
+        question: str,
+        session_id: uuid.UUID | None = None,
+        context_type: ChatContextType | None = None,
+        context_id: uuid.UUID | None = None,
+    ) -> dict:
         chat_session = None
         if session_id:
             chat_session = await self.chat_repo.get_session(user_id, session_id)
 
         if chat_session is None:
-            chat_session = ChatSession(user_id=user_id, title=f"Consultant: {question[:50]}")
-            await self.chat_repo.create(chat_session)
-            await self.session.flush()
-            await self.session.refresh(chat_session)
+            chat_session = await self._create_session(user_id, question, context_type, context_id)
 
         self.session.add(
             ChatMessage(session_id=chat_session.id, role=MessageRole.USER, content=question, confidence=1.0)
         )
 
-        patient_context = await self._build_patient_context(user_id)
+        if chat_session.context_type == ChatContextType.DOCUMENT:
+            patient_context = await self._build_document_context(user_id, chat_session.context_id)
+        elif chat_session.context_type == ChatContextType.ANALYSIS_RESULT:
+            patient_context = await self._build_analysis_context(user_id, chat_session.context_id)
+        else:
+            patient_context = await self._build_patient_context(user_id)
+
         result = await self.ai.answer(question, patient_context)
 
         assistant_msg = ChatMessage(
@@ -66,7 +80,51 @@ class ConsultantService:
             "confidence": assistant_msg.confidence,
             "citations": assistant_msg.citations,
             "warning": assistant_msg.warning,
+            "context_type": chat_session.context_type,
+            "context_label": chat_session.context_label,
         }
+
+    async def _create_session(
+        self,
+        user_id: uuid.UUID,
+        question: str,
+        context_type: ChatContextType | None,
+        context_id: uuid.UUID | None,
+    ) -> ChatSession:
+        if (context_type is None) != (context_id is None):
+            raise ValidationException("context_id is required when context_type is set")
+
+        title = f"Consultant: {question[:50]}"
+        context_label: str | None = None
+
+        if context_type == ChatContextType.DOCUMENT:
+            document = await self.document_repo.get_by_user_and_id(user_id, context_id)
+            if document is None:
+                raise NotFoundException("Selected document was not found.")
+            if not (document.embedding_text or document.ocr_text):
+                raise ValidationException(
+                    "Selected document has no extracted text yet and cannot be used to ground a conversation."
+                )
+            context_label = document.file_name
+            title = f"Chat about {document.file_name}"
+        elif context_type == ChatContextType.ANALYSIS_RESULT:
+            analysis = await self.analysis_repo.get_by_user_and_id(user_id, context_id)
+            if analysis is None:
+                raise NotFoundException("Selected analysis result was not found.")
+            context_label = analysis.title
+            title = f"Chat about {analysis.title}"
+
+        chat_session = ChatSession(
+            user_id=user_id,
+            title=title,
+            context_type=context_type,
+            context_id=context_id,
+            context_label=context_label,
+        )
+        await self.chat_repo.create(chat_session)
+        await self.session.flush()
+        await self.session.refresh(chat_session)
+        return chat_session
 
     async def history(self, user_id: uuid.UUID, session_id: uuid.UUID) -> list[ChatMessage]:
         chat_session = await self.chat_repo.get_session(user_id, session_id)
@@ -76,12 +134,49 @@ class ConsultantService:
         sessions = await self.chat_repo.list_sessions(user_id)
         return [
             ConversationListResponse(
-                title=f"Conversation {i+1}",
+                title=s.title,
                 session_id=s.id,
                 updated_at=s.updated_at,
+                context_type=s.context_type,
+                context_label=s.context_label,
             )
-            for i, s in enumerate(sessions)
+            for s in sessions
         ]
+
+    async def _build_document_context(self, user_id: uuid.UUID, document_id: uuid.UUID) -> str:
+        document = await self.document_repo.get_by_user_and_id(user_id, document_id)
+        if document is None:
+            raise NotFoundException("Grounding document is no longer available.")
+        text = (document.embedding_text or document.ocr_text or "")[:MAX_CHARS_GROUNDED_CONTEXT]
+        return (
+            "You are answering questions grounded ONLY in the following medical document. "
+            "Do not use other patient records.\n\n"
+            f"[document_id={document.id} file={document.file_name}]\n{text}"
+        )
+
+    async def _build_analysis_context(self, user_id: uuid.UUID, analysis_id: uuid.UUID) -> str:
+        analysis = await self.analysis_repo.get_by_user_and_id(user_id, analysis_id)
+        if analysis is None:
+            raise NotFoundException("Grounding analysis result is no longer available.")
+        timeline_lines = "\n".join(
+            f"  - {item.get('date', 'unknown date')}: {item.get('finding', '')}" for item in (analysis.timeline or [])
+        )
+        evidence_lines = "\n".join(f"  - {item.get('snippet', '')}" for item in (analysis.evidence or []))
+        body = (
+            f"Title: {analysis.title}\n"
+            f"Category: {analysis.category}\n"
+            f"Risk Level: {analysis.risk_level}\n"
+            f"Description: {analysis.description}\n"
+            f"Clinical Reason: {analysis.clinical_reason}\n"
+            f"Recommendation: {analysis.recommendation}\n"
+            + (f"Timeline:\n{timeline_lines}\n" if timeline_lines else "")
+            + (f"Evidence:\n{evidence_lines}\n" if evidence_lines else "")
+        )[:MAX_CHARS_GROUNDED_CONTEXT]
+        return (
+            "You are answering questions grounded ONLY in the following analysis result. "
+            "Do not use other patient records.\n\n"
+            f"[analysis_result_id={analysis.id}]\n{body}"
+        )
 
     async def _build_patient_context(self, user_id: uuid.UUID) -> str:
         user = await self.user_repo.get(user_id)

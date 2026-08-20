@@ -28,6 +28,8 @@ async def ask_consultant(
         user.id,
         payload.question,
         uuid.UUID(payload.session_id) if payload.session_id else None,
+        payload.context_type,
+        uuid.UUID(payload.context_id) if payload.context_id else None,
     )
 
     warning = result.get("warning")
@@ -39,6 +41,8 @@ async def ask_consultant(
         confidence=result["confidence"],
         citations=result.get("citations", []),
         warning=warning_obj,
+        context_type=result.get("context_type"),
+        context_label=result.get("context_label"),
     )
 
 
