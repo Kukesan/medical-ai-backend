@@ -35,7 +35,6 @@ class MedicalRecordService:
         user_id: uuid.UUID,
         record_type_code: str,
         data: dict[str, Any],
-        source_document_id: uuid.UUID | None = None,
         recorded_at: date | None = None,
     ) -> MedicalRecord | None:
         try:
@@ -59,7 +58,6 @@ class MedicalRecordService:
         record = MedicalRecord(
             user_id=user_id,
             record_type_id=record_type.id,
-            source_document_id=source_document_id,
             recorded_at=recorded_at,
             status=status,
             data=data,
@@ -83,7 +81,6 @@ class MedicalRecordService:
         user_id: uuid.UUID,
         status: RecordStatus | None = None,
         record_type_code: str | None = None,
-        document_id: uuid.UUID | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> Sequence[MedicalRecord]:
@@ -95,7 +92,6 @@ class MedicalRecordService:
             user_id,
             status=status,
             record_type_id=record_type_id,
-            document_id=document_id,
             limit=limit,
             offset=offset,
         )
@@ -136,8 +132,6 @@ class MedicalRecordService:
         record = await self.get(user_id, record_id)
         if record.status == RecordStatus.REJECTED:
             raise ConflictException("Cannot edit a rejected record")
-        if record.source_document_id is not None:
-            raise ConflictException("Cannot directly edit a record derived from a source document")
 
         record_type = await self.record_type_service.get_by_id(record.record_type_id)
         merged = {**record.data, **data}

@@ -20,7 +20,6 @@ class MedicalRecordListItem(ORMBaseSchema):
     record_type: str
     status: RecordStatus
     data: dict[str, Any]
-    source_document_id: UUID | None = None
     recorded_at: date | None = None
     current_version: int
     conflict_with_record_id: UUID | None = None

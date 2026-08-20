@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,10 +14,12 @@ from app.schemas.document import (
     DocumentExtractionUpdateRequest,
     DocumentExtractResponse,
     DocumentOut,
+    DocumentRecordItem,
     DocumentResponse,
     DocumentUploadItem,
     DocumentUploadResponse,
 )
+from app.services.document_record_service import DocumentRecordService
 from app.services.document_service import DocumentService
 from app.services.storage_service import LocalStorageService
 
@@ -110,6 +112,26 @@ async def list_documents(
         "processing_status": d.processing_status,
         "created_at": d.created_at,
     }) for d in docs]
+
+
+@router.get("/records", response_model=list[DocumentRecordItem])
+async def list_document_records(
+    record_type: str | None = Query(None),
+    document_id: uuid.UUID | None = Query(None),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[DocumentRecordItem]:
+    service = DocumentRecordService(session)
+    records = await service.list_records(user.id, record_type_code=record_type, document_id=document_id)
+    return [
+        DocumentRecordItem(
+            record_type=r.record_type_code,
+            data=r.data,
+            document_id=r.document_id,
+            recorded_at=r.recorded_at,
+        )
+        for r in records
+    ]
 
 
 @router.get("/{document_id}/detail", response_model=DocumentResponse)

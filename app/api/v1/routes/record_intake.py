@@ -46,7 +46,6 @@ def _to_record_item(record: MedicalRecord, record_type: RecordType) -> MedicalRe
         record_type=record_type.code,
         status=record.status,
         data=record.data,
-        source_document_id=record.source_document_id,
         recorded_at=record.recorded_at,
         current_version=record.current_version,
         conflict_with_record_id=record.conflict_with_record_id,

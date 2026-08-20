@@ -1,11 +1,11 @@
 from datetime import date, datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import Field
 
 from app.models.enums import DocumentType, ProcessingStatus
 from app.schemas.base import ORMBaseSchema
-from app.schemas.extraction import ExtractedLabResult, ExtractedMedication
 
 
 class DocumentOut(ORMBaseSchema):
@@ -48,7 +48,11 @@ class DocumentResponse(ORMBaseSchema):
     visit_date: date | None = None
     doctor_name: str | None = None
     hospital_name: str | None = None
-    # medications: list[ExtractedMedication]
-    # lab_results: list[ExtractedLabResult]
-    # diagnosis_text: str | None = None
     extraction_result: dict | None = None
+
+
+class DocumentRecordItem(ORMBaseSchema):
+    record_type: str
+    data: dict[str, Any]
+    document_id: UUID
+    recorded_at: date | None = None

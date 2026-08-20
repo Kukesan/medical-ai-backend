@@ -27,7 +27,6 @@ def _to_list_item(record: MedicalRecord, record_type: RecordType) -> MedicalReco
         record_type=record_type.code,
         status=record.status,
         data=record.data,
-        source_document_id=record.source_document_id,
         recorded_at=record.recorded_at,
         current_version=record.current_version,
         conflict_with_record_id=record.conflict_with_record_id,
@@ -40,7 +39,6 @@ def _to_list_item(record: MedicalRecord, record_type: RecordType) -> MedicalReco
 async def list_medical_records(
     status: RecordStatus | None = Query(None),
     record_type: str | None = Query(None),
-    document_id: uuid.UUID | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     user: User = Depends(get_current_user),
@@ -50,7 +48,7 @@ async def list_medical_records(
     type_service = RecordTypeService(session)
 
     records = await record_service.list_records(
-        user.id, status=status, record_type_code=record_type, document_id=document_id, limit=limit, offset=offset
+        user.id, status=status, record_type_code=record_type, limit=limit, offset=offset
     )
 
     type_cache: dict[uuid.UUID, RecordType] = {}

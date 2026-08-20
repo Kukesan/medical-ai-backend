@@ -11,6 +11,7 @@ from app.repositories.chat_repository import ChatRepository
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.consultant import ConversationListResponse
+from app.services.document_record_service import DocumentRecordService
 from app.services.medical_record_service import MedicalRecordService
 
 MAX_DOCUMENTS = 20
@@ -23,6 +24,7 @@ class ConsultantService:
         self.chat_repo = ChatRepository(session)
         self.user_repo = UserRepository(session)
         self.record_service = MedicalRecordService(session)
+        self.document_record_service = DocumentRecordService(session)
         self.document_repo = DocumentRepository(session)
         self.ai = ConsultantAIService()
 
@@ -80,9 +82,18 @@ class ConsultantService:
 
     async def _build_patient_context(self, user_id: uuid.UUID) -> str:
         user = await self.user_repo.get(user_id)
-        allergies = await self.record_service.list_data_by_type(user_id, "ALLERGY")
-        vaccinations = await self.record_service.list_data_by_type(user_id, "VACCINATION")
-        surgeries = await self.record_service.list_data_by_type(user_id, "SURGERY")
+        allergies = [
+            *await self.record_service.list_data_by_type(user_id, "ALLERGY"),
+            *await self.document_record_service.list_records(user_id, record_type_code="ALLERGY"),
+        ]
+        vaccinations = [
+            *await self.record_service.list_data_by_type(user_id, "VACCINATION"),
+            *await self.document_record_service.list_records(user_id, record_type_code="VACCINATION"),
+        ]
+        surgeries = [
+            *await self.record_service.list_data_by_type(user_id, "SURGERY"),
+            *await self.document_record_service.list_records(user_id, record_type_code="SURGERY"),
+        ]
         documents = await self.document_repo.list_by_user(user_id)
 
         sections: list[str] = [self._format_profile(user)]

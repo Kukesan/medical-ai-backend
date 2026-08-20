@@ -17,9 +17,6 @@ class MedicalRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     record_type_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("record_types.id"), nullable=False, index=True
     )
-    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("medical_documents.id"), nullable=True, index=True
-    )
     recorded_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[RecordStatus] = mapped_column(
         Enum(
@@ -39,6 +36,5 @@ class MedicalRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     user = relationship("User", back_populates="medical_records")
     record_type = relationship("RecordType", back_populates="medical_records")
-    source_document = relationship("MedicalDocument")
     conflict_with = relationship("MedicalRecord", remote_side="MedicalRecord.id")
     embeddings = relationship("Embedding", back_populates="record", cascade="all, delete-orphan")

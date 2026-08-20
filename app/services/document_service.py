@@ -16,13 +16,12 @@ from app.models.medical_document import MedicalDocument
 from app.models.patient_timeline import PatientTimeline
 from app.models.record_type import RecordType
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.medical_record_repository import MedicalRecordRepository
 from app.repositories.timeline_repository import TimelineRepository
 from app.schemas.document import DocumentResponse
-from app.schemas.extraction import ExtractedLabResult, ExtractedMedicalVisit, ExtractedMedication
+from app.schemas.extraction import ExtractedMedicalVisit
 from app.services.analysis_service import AnalysisService
 from app.services.embedding_service import EmbeddingService
-from app.services.medical_record_service import MedicalRecordService
+from app.services.record_type_service import RecordTypeService
 from app.services.s3_service import S3Service
 from app.services.storage_service import LocalStorageService
 
@@ -41,8 +40,7 @@ class DocumentService:
         self.session = session
         self.repo = DocumentRepository(session)
         self.timeline_repo = TimelineRepository(session)
-        self.record_repo = MedicalRecordRepository(session)
-        self.record_service = MedicalRecordService(session)
+        self.record_type_service = RecordTypeService(session)
         self.embedding_service = EmbeddingService(session)
         self.storage = storage
 
@@ -207,8 +205,7 @@ class DocumentService:
         if not doc.extraction_result:
             return
 
-        record_type_service = self.record_service.record_type_service
-        known_record_types = await record_type_service.list_active()
+        known_record_types = await self.record_type_service.list_active()
         known_record_types_payload = [
             {
                 "code": record_type.code,
@@ -224,6 +221,7 @@ class DocumentService:
             doc.extraction_result, known_record_types_payload
         )
 
+        classified: list[dict] = []
         for entry in classified_records:
             code = str(entry.get("record_type_code") or "").strip().upper()
             data = entry.get("data")
@@ -231,7 +229,7 @@ class DocumentService:
                 continue
 
             if entry.get("is_new_type"):
-                record_type = await record_type_service.get_or_create(
+                record_type = await self.record_type_service.get_or_create(
                     code=code,
                     name=entry.get("name") or code.replace("_", " ").title(),
                     description=entry.get("description"),
@@ -240,7 +238,7 @@ class DocumentService:
                     identity_field=entry.get("identity_field"),
                 )
             else:
-                record_type = await record_type_service.get_by_code_any_status(code)
+                record_type = await self.record_type_service.get_by_code_any_status(code)
                 if record_type is None:
                     logger.warning("Extraction referenced unknown record type code '%s', skipping", code)
                     continue
@@ -250,20 +248,22 @@ class DocumentService:
                 continue
 
             try:
-                record_type_service.validate_data(record_type, filtered_data)
+                self.record_type_service.validate_data(record_type, filtered_data)
             except ValidationException:
                 logger.warning("Skipping '%s' record that failed schema validation", code)
                 continue
 
             recorded_at = self._parse_date(entry.get("recorded_at")) or default_recorded_at
 
-            await self.record_service.create_from_extraction(
-                user_id=user_id,
-                record_type_code=record_type.code,
-                data=filtered_data,
-                source_document_id=doc.id,
-                recorded_at=recorded_at,
+            classified.append(
+                {
+                    "record_type_code": record_type.code,
+                    "data": filtered_data,
+                    "recorded_at": recorded_at.isoformat() if recorded_at else None,
+                }
             )
+
+        doc.classified_records = classified
 
     @staticmethod
     def _filter_data_to_schema(record_type: RecordType, data: dict) -> dict:
@@ -292,15 +292,6 @@ class DocumentService:
 
         timeline_entry = await self.timeline_repo.get_by_document_id(document.id)
 
-        medication_records = await self.record_service.list_records(
-            user_id, record_type_code="MEDICATION", document_id=document.id, limit=1000
-        )
-        lab_result_records = await self.record_service.list_records(
-            user_id, record_type_code="LAB_RESULT", document_id=document.id, limit=1000
-        )
-        medications = [ExtractedMedication(**record.data) for record in medication_records]
-        lab_results = [ExtractedLabResult(**record.data) for record in lab_result_records]
-
         return DocumentResponse(
             id=str(document.id),
             file_name=document.file_name,
@@ -312,9 +303,6 @@ class DocumentService:
             visit_date=timeline_entry.visit_date if timeline_entry else None,
             doctor_name=timeline_entry.doctor_name if timeline_entry else None,
             hospital_name=timeline_entry.hospital_name if timeline_entry else None,
-            # medications=medications,
-            # lab_results=lab_results,
-            # diagnosis_text=timeline_entry.diagnosis_text if timeline_entry else None,
             extraction_result=document.extraction_result,
         )
 
@@ -363,7 +351,6 @@ class DocumentService:
         if not doc:
             raise NotFoundException(f"Document {document_id} not found")
 
-        await self.record_repo.detach_source_document(doc.id)
         file_path = doc.file_path
         await self.repo.delete(doc)
         await self.session.commit()

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.document_record_service import DocumentRecordService
 from app.services.drug_interaction_service import DrugInteractionService
 from app.services.medical_record_service import MedicalRecordService
 
@@ -11,11 +12,18 @@ from app.services.medical_record_service import MedicalRecordService
 class MedicationAnalysisService:
     def __init__(self, session: AsyncSession) -> None:
         self.record_service = MedicalRecordService(session)
+        self.document_record_service = DocumentRecordService(session)
         self.interactions = DrugInteractionService()
 
     async def analyze(self, user_id: uuid.UUID) -> dict:
-        medication_records = await self.record_service.list_data_by_type(user_id, "MEDICATION")
-        allergy_records = await self.record_service.list_data_by_type(user_id, "ALLERGY")
+        medication_records = [
+            *await self.record_service.list_data_by_type(user_id, "MEDICATION"),
+            *await self.document_record_service.list_records(user_id, record_type_code="MEDICATION"),
+        ]
+        allergy_records = [
+            *await self.record_service.list_data_by_type(user_id, "ALLERGY"),
+            *await self.document_record_service.list_records(user_id, record_type_code="ALLERGY"),
+        ]
 
         meds = [
             SimpleNamespace(
@@ -23,7 +31,7 @@ class MedicationAnalysisService:
                 dosage=record.data.get("dosage"),
                 frequency=record.data.get("frequency"),
                 end_date=_parse_date(record.data.get("end_date")),
-                visit=SimpleNamespace(document_id=record.source_document_id),
+                visit=SimpleNamespace(document_id=getattr(record, "source_document_id", None)),
             )
             for record in medication_records
         ]
