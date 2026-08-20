@@ -44,7 +44,7 @@ class Settings(BaseSettings):
 
     ocr_extraction_scheduler_enabled: bool = Field(default=True, alias="OCR_EXTRACTION_SCHEDULER_ENABLED")
     ocr_extraction_scheduler_interval_minutes: int = Field(
-        default=5, alias="OCR_EXTRACTION_SCHEDULER_INTERVAL_MINUTES"
+        default=1, alias="OCR_EXTRACTION_SCHEDULER_INTERVAL_MINUTES"
     )
 
     @property
