@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 from fastapi.logger import logger
 from openai import AsyncOpenAI
@@ -93,11 +94,15 @@ class RecordIntakeAIService:
             2. The patient's original free text.
             3. Any follow-up questions already asked and the patient's answers.
 
-            Re-derive the structured data from scratch using ALL of the information above
+    Re-derive the structured data from scratch using ALL of the information above
             (the original text plus every question/answer pair), then identify which of
             the schema's important fields are still missing, and - if any are missing -
             write ONE natural-language follow-up question that would fill the single most
             important missing field.
+
+            You must also determine "recorded_at": the single calendar date this event
+            actually happened (not when the patient is typing it in), as a strict ISO
+            8601 date "YYYY-MM-DD".
 
             STRICT RULES:
             - Return only valid JSON.
@@ -110,6 +115,17 @@ class RecordIntakeAIService:
             - "next_question" is a short, natural, single question about the single most
               important entry in "missing_fields", or null if "missing_fields" is empty.
             - Ask about only ONE field at a time.
+            - Today's date is {date.today().isoformat()}. Use it to resolve relative
+              dates ("yesterday", "last Tuesday", "three weeks ago") into an exact
+              calendar date.
+            - If the text gives no date at all, set "recorded_at" to null and do NOT ask
+              about it - absence of a date is not ambiguity.
+            - If the text mentions a date but it is ambiguous, incomplete, or internally
+              inconsistent (e.g. only a month/year, conflicting mentions, an impossible
+              date) such that you cannot confidently resolve it to one exact calendar
+              date, set "recorded_at" to null, add "recorded_at" to "missing_fields", and
+              - if it is the most important gap - make "next_question" ask the patient to
+              confirm the exact date.
 
             Record type: {record_type.name} ({record_type.code})
             Description: {record_type.description or "n/a"}
@@ -130,7 +146,8 @@ class RecordIntakeAIService:
             {{
               "data": {{"...": "..."}},
               "missing_fields": ["incident_date"],
-              "next_question": "When did this happen?"
+              "next_question": "When did this happen?",
+              "recorded_at": "2026-08-14"
             }}
             """
 

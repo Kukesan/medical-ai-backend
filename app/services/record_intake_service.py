@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import date
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,7 @@ from app.services.record_type_service import RecordTypeService
 
 logger = logging.getLogger(__name__)
 
-MAX_QUESTIONS = 2
+MAX_QUESTIONS = 6
 
 
 class RecordIntakeService:
@@ -85,6 +86,7 @@ class RecordIntakeService:
     def _apply_ai_result(self, intake: RecordIntakeSession, result: dict) -> None:
         intake.draft_data = result.get("data") or {}
         intake.missing_fields = result.get("missing_fields") or []
+        intake.recorded_at = self._parse_recorded_at(result.get("recorded_at"))
         next_question = result.get("next_question")
 
         if next_question and intake.missing_fields and intake.questions_asked < MAX_QUESTIONS:
@@ -179,6 +181,15 @@ class RecordIntakeService:
         if intake.user_id != user_id:
             raise ForbiddenException("You do not have access to this intake session")
         return intake
+
+    @staticmethod
+    def _parse_recorded_at(value: Any) -> date | None:
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
 
     @staticmethod
     def _filter_data_to_schema(record_type: RecordType, data: dict) -> dict:
