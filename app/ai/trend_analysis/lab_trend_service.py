@@ -1,7 +1,6 @@
 from collections import defaultdict
 from statistics import mean
-
-from app.models.lab_result import LabResult
+from typing import Any
 
 
 class LabTrendService:
@@ -14,8 +13,8 @@ class LabTrendService:
         "blood pressure",
     }
 
-    def build_trends(self, lab_results: list[LabResult]) -> list[dict]:
-        grouped: dict[str, list[LabResult]] = defaultdict(list)
+    def build_trends(self, lab_results: list[Any]) -> list[dict]:
+        grouped: dict[str, list[Any]] = defaultdict(list)
         for row in lab_results:
             grouped[row.test_name.lower()].append(row)
 
@@ -49,7 +48,7 @@ class LabTrendService:
             return "decreasing"
         return "stable"
 
-    def _range_comparison(self, rows: list[LabResult]) -> str:
+    def _range_comparison(self, rows: list[Any]) -> str:
         refs = [r.reference_range for r in rows if r.reference_range]
         if not refs:
             return "reference_range_not_available"

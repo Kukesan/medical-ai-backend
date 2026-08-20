@@ -25,10 +25,6 @@ class ExtractedLabResult(ORMBaseSchema):
     observed_date: date | None = None
     confidence: float | None = None
 
-class ExtractedClinicalNote(ORMBaseSchema):
-    note_text: str | None = None
-    confidence: float | None = None
-
 class ExtractedAllergy(ORMBaseSchema):
     substance: str | None = None
     reaction: str | None = None

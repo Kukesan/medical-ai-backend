@@ -35,7 +35,7 @@ class ChatService:
             ChatMessage(session_id=session.id, role=MessageRole.USER, content=question, confidence=1.0)
         )
 
-        chunks = await self.embedding.search(question, top_k=5)
+        chunks = await self.embedding.search(user_id, question, top_k=5)
         answer = await self.rag.answer(question, chunks)
 
         assistant_msg = ChatMessage(

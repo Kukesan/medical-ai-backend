@@ -1,8 +1,8 @@
-from app.models.medical_visit import MedicalVisit
+from typing import Any
 
 
 class TimelineService:
-    def build(self, visits: list[MedicalVisit]) -> list[dict]:
+    def build(self, visits: list[Any]) -> list[dict]:
         entries: list[dict] = []
         for visit in visits:
             entries.append(

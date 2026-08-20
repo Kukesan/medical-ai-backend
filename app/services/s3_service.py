@@ -1,9 +1,9 @@
 import asyncio
-import uuid
 from pathlib import Path
 
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
 
@@ -20,9 +20,9 @@ class S3Service:
             config=Config(signature_version="s3v4"),
         )
 
-    def build_key(self, user_id: str, file_name: str) -> str:
+    def build_key(self, user_id: str, document_id: str, file_name: str) -> str:
         suffix = Path(file_name or "file").suffix.lower()
-        return f"documents/{user_id}/{uuid.uuid4()}{suffix}"
+        return f"documents/{user_id}/{document_id}{suffix}"
 
     def generate_upload_url(
         self, key: str, content_type: str, expires_in: int | None = None
@@ -46,3 +46,9 @@ class S3Service:
     async def download_object(self, key: str) -> bytes:
         response = await asyncio.to_thread(self.client.get_object, Bucket=self.bucket, Key=key)
         return await asyncio.to_thread(response["Body"].read)
+
+    async def head_object(self, key: str) -> dict | None:
+        try:
+            return await asyncio.to_thread(self.client.head_object, Bucket=self.bucket, Key=key)
+        except ClientError:
+            return None

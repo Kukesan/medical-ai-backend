@@ -17,6 +17,8 @@ class AlertCategory(str, Enum):
 
 class MedicationEvidence(BaseModel):
     document_id: str | None = None
+    record_id: str | None = None
+    record_type: str | None = None
     snippet: str
 
 
@@ -51,6 +53,26 @@ class MedicalDocumentInput(BaseModel):
     document_id: UUID
     document_date: str | None = None
     ocr_text: str
+
+class MedicalRecordInput(BaseModel):
+    record_id: UUID
+    record_type: str | None = None
+    recorded_at: str | None = None
+    data: dict
+
+class MedicalAnalysisListResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    category: AlertCategory
+    risk_level: RiskLevel
+    title: str
+    description: str
+    confidence: float = Field(
+        ge=0,
+        le=1,
+        description="AI confidence score between 0 and 1"
+    )
+    created_at: DateTime
 
 class MedicalAnalysisReponse(BaseModel):
     id: UUID

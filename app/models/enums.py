@@ -14,6 +14,8 @@ class ProcessingStatus(StrEnum):
     OCR_COMPLETED = "ocr_completed"
     EXTRACTED = "extracted"
     ANALYZED = "analyzed"
+    USER_EDITED = "user_edited"
+    ACCEPTED = "accepted"
     FAILED = "failed"
 
 
@@ -36,3 +38,25 @@ class MessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+
+
+class ChatContextType(StrEnum):
+    DOCUMENT = "document"
+    ANALYSIS_RESULT = "analysis_result"
+
+
+class RecordStatus(StrEnum):
+    PROCESSING = "processing"
+    EXTRACTED = "extracted"
+    NEEDS_REVIEW = "needs_review"
+    USER_EDITED = "user_edited"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+    CONFLICT_REQUIRES_REVIEW = "conflict_requires_review"
+
+
+class IntakeStatus(StrEnum):
+    AWAITING_CLARIFICATION = "awaiting_clarification"
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"

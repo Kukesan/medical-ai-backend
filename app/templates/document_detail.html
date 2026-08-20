@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ document.file_name }} - Document Details</title>
+<style>
+  :root {
+    --border: #e2e8f0;
+    --muted: #64748b;
+    --bg-soft: #f8fafc;
+    --accent: #2563eb;
+    --text: #0f172a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: #fff;
+    margin: 0;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; word-break: break-word; }
+  h2 {
+    font-size: 1.1rem;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+  .status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--accent);
+  }
+  table.meta-table, table.data-table, table.json-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.5rem;
+  }
+  table.meta-table th, table.meta-table td,
+  table.data-table th, table.data-table td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.92rem;
+    vertical-align: top;
+  }
+  table.meta-table th { width: 220px; color: var(--muted); font-weight: 600; }
+  table.data-table thead th {
+    background: var(--bg-soft);
+    color: var(--muted);
+    font-weight: 600;
+  }
+  table.json-table {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  table.json-table th {
+    width: 200px;
+    background: var(--bg-soft);
+    color: var(--muted);
+    font-weight: 600;
+    vertical-align: top;
+  }
+  table.json-table th, table.json-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  table.json-table table.json-table { margin-top: 0.25rem; }
+  ul.json-list { margin: 0; padding-left: 1.1rem; }
+  ul.json-list > li { margin-bottom: 0.35rem; }
+  .value-empty { color: var(--muted); }
+  .empty-state { color: var(--muted); font-style: italic; }
+  .section { margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>{{ document.file_name }}</h1>
+  <div class="subtitle">
+    <span class="status-badge">{{ document.processing_status }}</span>
+    &middot; {{ document.document_type }}
+    &middot; uploaded {{ document.created_at.strftime("%Y-%m-%d %H:%M") }}
+  </div>
+
+  <h2>Document Details</h2>
+  <table class="meta-table">
+    <tr><th>File name</th><td>{{ document.file_name }}</td></tr>
+    <tr><th>Mime type</th><td>{{ document.mime_type }}</td></tr>
+    <tr><th>File size</th><td>{{ "%.1f"|format(document.file_size / 1024) }} KB</td></tr>
+    <tr><th>Document type</th><td>{{ document.document_type }}</td></tr>
+    <tr><th>Processing status</th><td>{{ document.processing_status }}</td></tr>
+    <tr><th>Uploaded at</th><td>{{ document.created_at.strftime("%Y-%m-%d %H:%M") }}</td></tr>
+    <tr><th>Visit date</th><td>{{ document.visit_date or "—" }}</td></tr>
+    <tr><th>Doctor</th><td>{{ document.doctor_name or "—" }}</td></tr>
+    <tr><th>Hospital</th><td>{{ document.hospital_name or "—" }}</td></tr>
+  </table>
+
+  <h2>Extracted Data</h2>
+  {% if document.extraction_result %}
+    {{ document.extraction_result | json_html }}
+  {% else %}
+  <div class="empty-state">No additional extracted data available.</div>
+  {% endif %}
+</div>
+</body>
+</html>

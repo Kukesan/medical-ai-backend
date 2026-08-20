@@ -1,10 +1,11 @@
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends
+from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import UnauthorizedException
 from app.core.security import decode_token
 from app.database.session import get_db_session
@@ -50,3 +51,8 @@ async def get_current_user(
         raise UnauthorizedException("User not found")
 
     return user
+
+
+async def verify_service_api_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
+    if not settings.internal_service_api_key or x_api_key != settings.internal_service_api_key:
+        raise UnauthorizedException("Invalid or missing service API key")

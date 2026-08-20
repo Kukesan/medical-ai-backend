@@ -38,8 +38,9 @@ class MedicalDocument(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ocr_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     extraction_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    classified_records: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     embedding_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user = relationship("User", back_populates="documents")
-    visits = relationship("MedicalVisit", back_populates="document", cascade="all, delete-orphan")
+    timeline_entries = relationship("PatientTimeline", back_populates="document", cascade="all, delete-orphan")
     embeddings = relationship("Embedding", back_populates="document", cascade="all, delete-orphan")

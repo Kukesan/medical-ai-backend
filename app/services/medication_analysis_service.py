@@ -1,19 +1,48 @@
 import uuid
+from datetime import date
+from types import SimpleNamespace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.allergy_repository import AllergyRepository
-from app.repositories.medication_repository import MedicationRepository
+from app.services.document_record_service import DocumentRecordService
 from app.services.drug_interaction_service import DrugInteractionService
+from app.services.medical_record_service import MedicalRecordService
 
 
 class MedicationAnalysisService:
     def __init__(self, session: AsyncSession) -> None:
-        self.med_repo = MedicationRepository(session)
-        self.allergy_repo = AllergyRepository(session)
+        self.record_service = MedicalRecordService(session)
+        self.document_record_service = DocumentRecordService(session)
         self.interactions = DrugInteractionService()
 
     async def analyze(self, user_id: uuid.UUID) -> dict:
-        meds = list(await self.med_repo.list_by_user(user_id))
-        allergies = {item.substance for item in await self.allergy_repo.list_by_user(user_id)}
+        medication_records = [
+            *await self.record_service.list_data_by_type(user_id, "MEDICATION"),
+            *await self.document_record_service.list_records(user_id, record_type_code="MEDICATION"),
+        ]
+        allergy_records = [
+            *await self.record_service.list_data_by_type(user_id, "ALLERGY"),
+            *await self.document_record_service.list_records(user_id, record_type_code="ALLERGY"),
+        ]
+
+        meds = [
+            SimpleNamespace(
+                name=record.data.get("name"),
+                dosage=record.data.get("dosage"),
+                frequency=record.data.get("frequency"),
+                end_date=_parse_date(record.data.get("end_date")),
+                visit=SimpleNamespace(
+                    document_id=getattr(record, "source_document_id", None),
+                    record_id=getattr(record, "id", None),
+                    record_type="MEDICATION",
+                ),
+            )
+            for record in medication_records
+        ]
+        allergies = {record.data.get("substance") for record in allergy_records if record.data.get("substance")}
+
         return self.interactions.analyze(meds, allergies)
+
+
+def _parse_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None

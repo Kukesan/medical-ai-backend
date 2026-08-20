@@ -3,9 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_session
 from app.models.user import User
-from app.schemas.analysis import AlertItem
 from app.schemas.lab import LabTrendsResponse
+from app.schemas.medication_analyze import MedicalAnalysisListResponse
 from app.schemas.timeline import TimelineListResponse
+from app.services.analysis_service import AnalysisService
 from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
 from app.services.timeline_service import TimelineService
@@ -54,19 +55,10 @@ async def lab_trends(
     )
 
 
-@router.get("/alerts", response_model=list[AlertItem])
+@router.get("/alerts", response_model=list[MedicalAnalysisListResponse])
 async def alerts(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[AlertItem]:
-    svc = MedicationAnalysisService(session)
-    result = await svc.analyze(user.id)
-
-    merged = (
-        result.get("duplicate_medications", [])
-        + result.get("drug_interactions", [])
-        + result.get("conflicting_dosages", [])
-        + result.get("expired_prescriptions", [])
-        + result.get("allergy_alerts", [])
-    )
-    return [AlertItem.model_validate(item) for item in merged]
+) -> list[MedicalAnalysisListResponse]:
+    svc = AnalysisService(session)
+    return await svc.get_important_alerts(user.id)
