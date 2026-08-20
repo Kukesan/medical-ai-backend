@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import RecordStatus
@@ -45,3 +45,11 @@ class MedicalRecordRepository(BaseRepository[MedicalRecord]):
         if len(matches) != 1:
             return None
         return matches[0]
+
+    async def detach_source_document(self, document_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(MedicalRecord)
+            .where(MedicalRecord.source_document_id == document_id)
+            .values(source_document_id=None)
+        )
+        await self.session.flush()

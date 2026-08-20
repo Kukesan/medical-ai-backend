@@ -1,10 +1,16 @@
+import logging
 import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.record_intake.service import RecordIntakeAIService
-from app.core.exceptions import ConflictException, ForbiddenException, NotFoundException, ValidationException
+from app.core.exceptions import (
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+    ValidationException,
+)
 from app.models.enums import IntakeStatus
 from app.models.medical_record import MedicalRecord
 from app.models.record_intake_session import RecordIntakeSession
@@ -12,6 +18,8 @@ from app.models.record_type import RecordType
 from app.repositories.record_intake_repository import RecordIntakeRepository
 from app.services.medical_record_service import MedicalRecordService
 from app.services.record_type_service import RecordTypeService
+
+logger = logging.getLogger(__name__)
 
 MAX_QUESTIONS = 2
 
@@ -140,6 +148,19 @@ class RecordIntakeService:
         intake.draft_data = final_data
 
         await self.session.commit()
+
+        # The user just walked through the confirm step for this exact data, which is
+        # itself a trust signal (unlike a freshly-OCR'd document record still awaiting
+        # review) - so embed immediately rather than waiting for a separate verify().
+        try:
+            await self.medical_record_service.embedding_service.embed_medical_record(
+                user_id, record, record_type
+            )
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            logger.exception("Embedding failed for intake-confirmed record %s", record.id)
+
         return record
 
     async def abandon(self, user_id: uuid.UUID, intake_id: uuid.UUID) -> RecordIntakeSession:

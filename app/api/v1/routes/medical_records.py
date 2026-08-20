@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response, status
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -136,6 +136,17 @@ async def reject_medical_record(
     record = await record_service.reject(user.id, record_id)
     record_type = await type_service.get_by_id(record.record_type_id)
     return _to_list_item(record, record_type)
+
+
+@router.delete("/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_medical_record(
+    record_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    record_service = MedicalRecordService(session)
+    await record_service.delete(user.id, record_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{record_id}/resolve-conflict", response_model=MedicalRecordListItem)

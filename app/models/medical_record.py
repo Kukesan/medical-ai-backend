@@ -41,3 +41,4 @@ class MedicalRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     record_type = relationship("RecordType", back_populates="medical_records")
     source_document = relationship("MedicalDocument")
     conflict_with = relationship("MedicalRecord", remote_side="MedicalRecord.id")
+    embeddings = relationship("Embedding", back_populates="record", cascade="all, delete-orphan")

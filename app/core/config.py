@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    embedding_dimensions: int = Field(default=1536, alias="EMBEDDING_DIMENSIONS")
 
     local_storage_dir: str = Field(default="storage", alias="LOCAL_STORAGE_DIR")
-    faiss_index_dir: str = Field(default="storage/faiss", alias="FAISS_INDEX_DIR")
     log_dir: str = Field(default="logs", alias="LOG_DIR")
     error_log_retention_days: int = Field(default=30, alias="ERROR_LOG_RETENTION_DAYS")
     max_upload_size_mb: int = Field(default=25, alias="MAX_UPLOAD_SIZE_MB")
@@ -45,12 +45,6 @@ class Settings(BaseSettings):
     @property
     def local_storage_path(self) -> Path:
         path = Path(self.local_storage_dir)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @property
-    def faiss_index_path(self) -> Path:
-        path = Path(self.faiss_index_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
 

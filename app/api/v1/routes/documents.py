@@ -1,8 +1,8 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Request, UploadFile, status
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_session, verify_service_api_key
@@ -81,6 +81,17 @@ async def accept_document(
 ) -> DocumentResponse:
     service = DocumentService(session, LocalStorageService())
     return await service.accept_document(user.id, document_id)
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    service = DocumentService(session, LocalStorageService())
+    await service.delete_document(user.id, document_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("", response_model=list[DocumentOut])

@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import IntakeStatus
@@ -23,3 +23,11 @@ class RecordIntakeRepository(BaseRepository[RecordIntakeSession]):
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def detach_resulting_record(self, record_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(RecordIntakeSession)
+            .where(RecordIntakeSession.resulting_record_id == record_id)
+            .values(resulting_record_id=None)
+        )
+        await self.session.flush()

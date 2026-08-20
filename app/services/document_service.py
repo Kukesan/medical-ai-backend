@@ -16,10 +16,12 @@ from app.models.medical_document import MedicalDocument
 from app.models.patient_timeline import PatientTimeline
 from app.models.record_type import RecordType
 from app.repositories.document_repository import DocumentRepository
+from app.repositories.medical_record_repository import MedicalRecordRepository
 from app.repositories.timeline_repository import TimelineRepository
 from app.schemas.document import DocumentResponse
 from app.schemas.extraction import ExtractedLabResult, ExtractedMedicalVisit, ExtractedMedication
 from app.services.analysis_service import AnalysisService
+from app.services.embedding_service import EmbeddingService
 from app.services.medical_record_service import MedicalRecordService
 from app.services.s3_service import S3Service
 from app.services.storage_service import LocalStorageService
@@ -39,7 +41,9 @@ class DocumentService:
         self.session = session
         self.repo = DocumentRepository(session)
         self.timeline_repo = TimelineRepository(session)
+        self.record_repo = MedicalRecordRepository(session)
         self.record_service = MedicalRecordService(session)
+        self.embedding_service = EmbeddingService(session)
         self.storage = storage
 
     async def upload_documents(
@@ -342,7 +346,26 @@ class DocumentService:
         doc.processing_status = ProcessingStatus.ACCEPTED
         await self.session.commit()
 
+        try:
+            await self.embedding_service.embed_document(user_id, doc)
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            logger.exception("Embedding failed for document %s", document_id)
+
         response = await self.get_document(user_id, document_id)
         if response is None:
             raise NotFoundException(f"Document {document_id} not found")
         return response
+
+    async def delete_document(self, user_id: uuid.UUID, document_id: uuid.UUID) -> None:
+        doc = await self.repo.get_by_user_and_id(user_id, document_id)
+        if not doc:
+            raise NotFoundException(f"Document {document_id} not found")
+
+        await self.record_repo.detach_source_document(doc.id)
+        file_path = doc.file_path
+        await self.repo.delete(doc)
+        await self.session.commit()
+
+        self.storage.delete(file_path)

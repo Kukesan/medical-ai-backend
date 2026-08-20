@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
@@ -11,7 +12,11 @@ from app.models.enums import RecordStatus
 from app.models.medical_record import MedicalRecord
 from app.models.record_type import RecordType
 from app.repositories.medical_record_repository import MedicalRecordRepository
+from app.repositories.record_intake_repository import RecordIntakeRepository
+from app.services.embedding_service import EmbeddingService
 from app.services.record_type_service import RecordTypeService
+
+logger = logging.getLogger(__name__)
 
 VERIFIABLE_STATUSES = (RecordStatus.NEEDS_REVIEW, RecordStatus.USER_EDITED)
 REJECTABLE_STATUSES = (RecordStatus.NEEDS_REVIEW, RecordStatus.USER_EDITED, RecordStatus.CONFLICT_REQUIRES_REVIEW)
@@ -22,6 +27,8 @@ class MedicalRecordService:
         self.session = session
         self.repo = MedicalRecordRepository(session)
         self.record_type_service = RecordTypeService(session)
+        self.intake_repo = RecordIntakeRepository(session)
+        self.embedding_service = EmbeddingService(session)
 
     async def create_from_extraction(
         self,
@@ -145,6 +152,12 @@ class MedicalRecordService:
         record.status = RecordStatus.USER_EDITED
 
         await self.session.commit()
+
+        # Any existing embedding (from a prior verify, or from record-intake confirm)
+        # now reflects stale data; drop it until the record is (re-)verified. No-op if
+        # nothing was embedded yet.
+        await self._purge_embedding(record.id)
+
         return record
 
     async def verify(self, user_id: uuid.UUID, record_id: uuid.UUID) -> MedicalRecord:
@@ -156,6 +169,15 @@ class MedicalRecordService:
         record.current_version += 1
 
         await self.session.commit()
+
+        record_type = await self.record_type_service.get_by_id(record.record_type_id)
+        try:
+            await self.embedding_service.embed_medical_record(user_id, record, record_type)
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            logger.exception("Embedding failed for medical record %s", record_id)
+
         return record
 
     async def reject(self, user_id: uuid.UUID, record_id: uuid.UUID) -> MedicalRecord:
@@ -167,6 +189,7 @@ class MedicalRecordService:
         record.current_version += 1
 
         await self.session.commit()
+        await self._purge_embedding(record.id)
         return record
 
     async def resolve_conflict(
@@ -178,6 +201,8 @@ class MedicalRecordService:
         record = await self.get(user_id, record_id)
         if record.status != RecordStatus.CONFLICT_REQUIRES_REVIEW:
             raise ConflictException("Record is not in a conflict state")
+
+        superseded_id: uuid.UUID | None = None
 
         if resolution == "keep_existing":
             record.status = RecordStatus.REJECTED
@@ -191,6 +216,36 @@ class MedicalRecordService:
                 if superseded is not None and superseded.status == RecordStatus.VERIFIED:
                     superseded.status = RecordStatus.REJECTED
                     superseded.current_version += 1
+                    superseded_id = superseded.id
 
         await self.session.commit()
+
+        if resolution == "keep_existing":
+            await self._purge_embedding(record.id)
+        else:
+            record_type = await self.record_type_service.get_by_id(record.record_type_id)
+            try:
+                await self.embedding_service.embed_medical_record(user_id, record, record_type)
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                logger.exception("Embedding failed for medical record %s", record_id)
+            if superseded_id is not None:
+                await self._purge_embedding(superseded_id)
+
         return record
+
+    async def delete(self, user_id: uuid.UUID, record_id: uuid.UUID) -> None:
+        record = await self.get(user_id, record_id)
+        await self._purge_embedding(record.id)
+        await self.intake_repo.detach_resulting_record(record.id)
+        await self.repo.delete(record)
+        await self.session.commit()
+
+    async def _purge_embedding(self, record_id: uuid.UUID) -> None:
+        try:
+            await self.embedding_service.delete_by_record(record_id)
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            logger.exception("Failed to purge embedding for medical record %s", record_id)

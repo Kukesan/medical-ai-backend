@@ -9,7 +9,6 @@ from app.models.analysis_result import AnalysisResult
 from app.models.enums import AlertCategory, ProcessingStatus, RiskLevel
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.document_repository import DocumentRepository
-from app.services.embedding_service import EmbeddingService
 from app.services.extraction_service import ExtractionService
 from app.services.lab_trend_service import LabTrendService
 from app.services.medication_analysis_service import MedicationAnalysisService
@@ -26,7 +25,6 @@ class AnalysisService:
         self.extractor = ExtractionService()
         self.medication = MedicationAnalysisService(session)
         self.lab = LabTrendService(session)
-        self.embedding = EmbeddingService(session)
 
     @staticmethod
     def _coerce_alert_category(value: str | None) -> AlertCategory:
@@ -107,8 +105,6 @@ class AnalysisService:
             extracted = await self.extractor.run(document.ocr_text)
             document.extraction_result = extracted
             document.processing_status = ProcessingStatus.EXTRACTED
-
-            await self.embedding.index_document(user_id, document.id)
 
         med_result = await self.medication.analyze(user_id)
         grouped_alerts = [

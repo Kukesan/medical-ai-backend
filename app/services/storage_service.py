@@ -20,3 +20,6 @@ class LocalStorageService:
         with target.open("wb") as out:
             shutil.copyfileobj(upload.file, out)
         return target
+
+    def delete(self, path: str) -> None:
+        Path(path).unlink(missing_ok=True)
