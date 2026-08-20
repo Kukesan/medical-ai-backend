@@ -22,6 +22,9 @@ app = FastAPI(
 
 app.state.limiter = limiter
 
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,9 +32,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(RequestContextMiddleware)
-app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
