@@ -42,11 +42,6 @@ class Settings(BaseSettings):
 
     google_places_api_key: str = Field(default="", alias="GOOGLE_PLACES_API_KEY")
 
-    ocr_extraction_scheduler_enabled: bool = Field(default=True, alias="OCR_EXTRACTION_SCHEDULER_ENABLED")
-    ocr_extraction_scheduler_interval_minutes: int = Field(
-        default=1, alias="OCR_EXTRACTION_SCHEDULER_INTERVAL_MINUTES"
-    )
-
     @property
     def local_storage_path(self) -> Path:
         path = Path(self.local_storage_dir)

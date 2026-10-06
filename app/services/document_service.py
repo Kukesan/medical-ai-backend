@@ -195,22 +195,6 @@ class DocumentService:
         await self.session.refresh(doc)
         return doc
 
-    async def extract_pending_ocr_documents(self) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
-        docs = await self.repo.list_by_status(ProcessingStatus.OCR_COMPLETED)
-
-        succeeded: list[uuid.UUID] = []
-        failed: list[uuid.UUID] = []
-        for doc in docs:
-            try:
-                await self.extract_from_existing_ocr(doc.id)
-                succeeded.append(doc.id)
-            except Exception:
-                logger.exception("Scheduled extraction failed for document %s", doc.id)
-                failed.append(doc.id)
-                await self.session.rollback()
-
-        return succeeded, failed
-
     async def _create_records_from_extraction(
         self,
         doc: MedicalDocument,
