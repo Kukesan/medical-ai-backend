@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "aptPackages": ["...", "libgl1", "libglib2.0-0"]
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
   }
 }

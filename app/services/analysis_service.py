@@ -1,6 +1,5 @@
 import json
 import uuid
-from pathlib import Path
 from app.ai.interaction_checker.medication_interaction_service import MedicationInteractionService
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +12,6 @@ from app.services.extraction_service import ExtractionService
 from app.services.lab_trend_service import LabTrendService
 from app.services.medical_record_service import MedicalRecordService
 from app.services.medication_analysis_service import MedicationAnalysisService
-from app.services.ocr_service import OCRService
 from app.services.record_type_service import RecordTypeService
 from app.schemas.medication_analyze import MedicalAnalysisListResponse, MedicalAnalysisReponse, MedicalAnalysisReponse, MedicalDocumentInput, MedicalRecordInput, MedicationAlert, MedicationReviewResult
 
@@ -23,7 +21,6 @@ class AnalysisService:
         self.doc_repo = DocumentRepository(session)
         self.analysis_repo = AnalysisRepository(session)
 
-        self.ocr = OCRService()
         self.extractor = ExtractionService()
         self.medication = MedicationAnalysisService(session)
         self.lab = LabTrendService(session)
@@ -103,10 +100,8 @@ class AnalysisService:
             if not document:
                 continue
 
-            ocr_result = await self.ocr.process(Path(document.file_path))
-            document.ocr_text = ocr_result.get("text", "")
-            document.ocr_metadata = ocr_result.get("metadata", {})
-            document.processing_status = ProcessingStatus.OCR_COMPLETED
+            if not document.ocr_text:
+                continue
 
             extracted = await self.extractor.run(document.ocr_text)
             document.extraction_result = extracted
