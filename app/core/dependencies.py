@@ -47,8 +47,11 @@ async def get_current_user(
 
     repo = UserRepository(session)
     user = await repo.get(user_uuid)
-    if not user:
+    if not user or not user.is_active:
         raise UnauthorizedException("User not found")
+    # Tokens issued before a logout or password change carry an older version.
+    if payload.get("ver", 0) != user.token_version:
+        raise UnauthorizedException("Session is no longer valid")
 
     return user
 

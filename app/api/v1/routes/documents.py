@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +16,6 @@ from app.schemas.document import (
     DocumentOut,
     DocumentRecordItem,
     DocumentResponse,
-    DocumentUploadItem,
-    DocumentUploadResponse,
 )
 from app.services.document_record_service import DocumentRecordService
 from app.services.document_service import DocumentService
@@ -26,24 +24,6 @@ from app.services.storage_service import LocalStorageService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents")
-
-
-@router.post("/upload", response_model=DocumentUploadResponse)
-async def upload_documents(
-    files: list[UploadFile] = File(...),
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> DocumentUploadResponse:
-    service = DocumentService(session, LocalStorageService())
-    docs, failed = await service.upload_documents(user.id, files)
-
-    return DocumentUploadResponse(
-        uploaded=[
-            DocumentUploadItem(file_name=d.file_name, document_id=str(d.id), status=d.processing_status)
-            for d in docs
-        ],
-        failed=failed,
-    )
 
 
 @router.post("/{document_id}/extract", response_model=DocumentExtractResponse)

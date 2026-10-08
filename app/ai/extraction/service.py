@@ -171,7 +171,7 @@ class ExtractionService:
             text={"format": {"type": "json_object"}},
         )
 
-        logger.info("OpenAI Response: %s", response.output_text)
+        logger.debug("OpenAI response received (%d chars)", len(response.output_text or ""))
 
         try:
             data = json.loads(response.output_text)
@@ -190,7 +190,8 @@ class ExtractionService:
 
         except Exception as e:
             logger.exception("Failed to parse OpenAI response")
-            logger.error("Raw response: %s", response.output_text)
+            # Never log the content itself: it is patient health data.
+            logger.error("Unparseable OpenAI response (%d chars)", len(response.output_text or ""))
             return []
 
 
@@ -249,7 +250,7 @@ class ExtractionService:
                 text={"format": {"type": "json_object"}},
             )
     
-            logger.info("OpenAI Response: %s", response.output_text)
+            logger.debug("OpenAI response received (%d chars)", len(response.output_text or ""))
     
             try:
                 data = json.loads(response.output_text)
@@ -268,7 +269,8 @@ class ExtractionService:
     
             except Exception:
                 logger.exception("Failed to parse OpenAI response")
-                logger.error("Raw response: %s", response.output_text)
+                # Never log the content itself: it is patient health data.
+                logger.error("Unparseable OpenAI response (%d chars)", len(response.output_text or ""))
                 return []
     
 
@@ -361,7 +363,8 @@ class ExtractionService:
             return [record for record in records if isinstance(record, dict)]
         except json.JSONDecodeError:
             logger.exception("Failed to parse OpenAI response")
-            logger.error("Raw response: %s", response.output_text)
+            # Never log the content itself: it is patient health data.
+            logger.error("Unparseable OpenAI response (%d chars)", len(response.output_text or ""))
             return []
 
     async def extract_structured(self, ocr_text: str) -> dict:

@@ -9,6 +9,8 @@ from app.core.config import settings
 
 
 class S3Service:
+    KEY_PREFIX = "documents/"
+
     def __init__(self) -> None:
         self.bucket = settings.s3_bucket_name
         self.default_expires_in = settings.presigned_url_expire_seconds
@@ -22,7 +24,11 @@ class S3Service:
 
     def build_key(self, user_id: str, document_id: str, file_name: str) -> str:
         suffix = Path(file_name or "file").suffix.lower()
-        return f"documents/{user_id}/{document_id}{suffix}"
+        return f"{self.KEY_PREFIX}{user_id}/{document_id}{suffix}"
+
+    @classmethod
+    def is_s3_key(cls, file_path: str) -> bool:
+        return file_path.startswith(cls.KEY_PREFIX)
 
     def generate_upload_url(
         self, key: str, content_type: str, expires_in: int | None = None

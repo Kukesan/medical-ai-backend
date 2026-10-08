@@ -2,16 +2,18 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import Field
+
 from app.models.enums import IntakeStatus
 from app.schemas.base import ORMBaseSchema
 
 
 class RecordIntakeStartRequest(ORMBaseSchema):
-    text: str
+    text: str = Field(min_length=1, max_length=8000)
 
 
 class RecordIntakeAnswerRequest(ORMBaseSchema):
-    answer: str
+    answer: str = Field(min_length=1, max_length=4000)
 
 
 class RecordIntakeConfirmRequest(ORMBaseSchema):

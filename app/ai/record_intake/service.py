@@ -74,7 +74,8 @@ class RecordIntakeAIService:
             return data if isinstance(data, dict) else {}
         except json.JSONDecodeError:
             logger.exception("Failed to parse OpenAI classification response")
-            logger.error("Raw response: %s", response.output_text)
+            # Never log the content itself: it is patient health data.
+            logger.error("Unparseable OpenAI response (%d chars)", len(response.output_text or ""))
             return {}
 
     async def extract_and_ask(
@@ -166,5 +167,6 @@ class RecordIntakeAIService:
             return data if isinstance(data, dict) else {}
         except json.JSONDecodeError:
             logger.exception("Failed to parse OpenAI extract_and_ask response")
-            logger.error("Raw response: %s", response.output_text)
+            # Never log the content itself: it is patient health data.
+            logger.error("Unparseable OpenAI response (%d chars)", len(response.output_text or ""))
             return {}

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import AI_LIMIT, limiter
 from app.core.dependencies import get_current_user, get_session
 from app.core.exceptions import NotFoundException
 from app.models.enums import AlertCategory
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/doctor-recommendation")
 
 
 @router.post("/search", response_model=DoctorSearchResponse)
+@limiter.limit(AI_LIMIT)
 async def search_doctors(
+    request: Request,
     payload: DoctorSearchRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

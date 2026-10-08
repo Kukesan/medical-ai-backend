@@ -26,8 +26,14 @@ htmlcov/
 .env
 .env.*
 
+!.env.example
+
 # Logs
 *.log
+logs/
+
+# Uploaded documents and local vector indexes: patient data, never commit
+storage/
 
 # IDE / editor files
 .vscode/

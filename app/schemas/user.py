@@ -21,6 +21,10 @@ class UserProfileCreateRequest(ORMBaseSchema):
     notes: str | None = Field(default=None, max_length=2000)
 
 
+class AccountDeleteRequest(ORMBaseSchema):
+    password: str = Field(min_length=1, max_length=128)
+
+
 class UserProfileUpdateRequest(ORMBaseSchema):
     full_name: str | None = Field(default=None, min_length=1, max_length=100)
     date_of_birth: date | None = None
