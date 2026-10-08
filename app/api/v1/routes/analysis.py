@@ -1,8 +1,9 @@
 import asyncio
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
+from app.core.rate_limiter import AI_LIMIT, limiter
 from app.core.dependencies import get_current_user
 from app.database.session import SessionLocal
 from app.models.user import User
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/analysis")
 
 
 @router.post("/run", response_model=AnalysisRunResponse)
+@limiter.limit(AI_LIMIT)
 async def run_analysis(
+    request: Request,
     payload: AnalysisRunRequest,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
@@ -49,7 +52,9 @@ async def get_analysis_result_by_id(
         return result
 
 @router.post("/analyze-medication-interactions", response_model=dict)
+@limiter.limit(AI_LIMIT)
 async def analyze_medication_interactions(
+    request: Request,
     user: User = Depends(get_current_user),
 ) -> dict:
     async with SessionLocal() as session:

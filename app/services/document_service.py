@@ -2,13 +2,10 @@ import logging
 import uuid
 from collections.abc import Sequence
 from datetime import date
-from pathlib import Path
 
-from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.emdeddings_formater.service import EmbeddingsFormatterService
-from app.ai.extraction.ocr_service import get_ocr_service
 from app.ai.extraction.service import ExtractionService
 from app.core.exceptions import NotFoundException, ValidationException
 from app.models.enums import ProcessingStatus
@@ -19,7 +16,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.repositories.timeline_repository import TimelineRepository
 from app.schemas.document import DocumentResponse
 from app.schemas.extraction import ExtractedMedicalVisit
-from app.services.analysis_service import AnalysisService
+from app.schemas.s3_document import ALLOWED_UPLOAD_MIME_TYPES, max_upload_bytes
 from app.services.embedding_service import EmbeddingService
 from app.services.record_type_service import RecordTypeService
 from app.services.s3_service import S3Service
@@ -29,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentService:
-    ALLOWED_MIME_TYPES = {"application/pdf", "image/png", "image/jpeg"}
     NOT_YET_EXTRACTED_STATUSES = (
         ProcessingStatus.UPLOADED,
         ProcessingStatus.OCR_COMPLETED,
@@ -43,54 +39,6 @@ class DocumentService:
         self.record_type_service = RecordTypeService(session)
         self.embedding_service = EmbeddingService(session)
         self.storage = storage
-
-    async def upload_documents(
-        self,
-        user_id: uuid.UUID,
-        files: Sequence[UploadFile],
-    ) -> tuple[list[MedicalDocument], list[str]]:
-        docs: list[MedicalDocument] = []
-        failed: list[str] = []
-
-        ocr_service = get_ocr_service()
-        embedding_formatter_service = EmbeddingsFormatterService();
-        analyze_service = AnalysisService(self.session);  # Assuming you have an analysis service for processing documents
-        for file in files:
-            if file.content_type not in self.ALLOWED_MIME_TYPES:
-                failed.append(file.filename or "unknown")
-                continue
-
-            file.file.seek(0, 2)
-            file_size = file.file.tell()
-            file.file.seek(0)
-
-            document_id = uuid.uuid4()
-            saved_path: Path = await self.storage.save_upload(str(user_id), str(document_id), file)
-
-            doc = MedicalDocument(
-                id=document_id,
-                user_id=user_id,
-                file_name=file.filename or saved_path.name,
-                file_path=str(saved_path),
-                mime_type=file.content_type or "application/octet-stream",
-                file_size=file_size,
-                processing_status=ProcessingStatus.UPLOADED,
-            )
-
-            await self.repo.create(doc)
-            await self.session.flush()
-
-            await self._extract_document(doc, saved_path, user_id, ocr_service, embedding_formatter_service)
-
-            docs.append(doc)
-
-        await self.session.commit()
-        for doc in docs:
-            await self.session.refresh(doc)
-
-        # await analyze_service.analyze_medication_interactions(user_id)
-
-        return docs, failed
 
     async def confirm_s3_uploads(
         self, user_id: uuid.UUID, document_ids: Sequence[uuid.UUID], s3: S3Service
@@ -109,7 +57,20 @@ class DocumentService:
                 failed.append(str(document_id))
                 continue
 
-            doc.file_size = head.get("ContentLength", doc.file_size)
+            # The presigned PUT cannot cap the size and the client could ignore the declared type,
+            # so check what actually landed in the bucket and discard anything out of bounds.
+            actual_size = head.get("ContentLength", 0)
+            actual_type = head.get("ContentType", "")
+            if actual_size > max_upload_bytes() or actual_type not in ALLOWED_UPLOAD_MIME_TYPES:
+                logger.warning(
+                    "Rejecting S3 upload for document %s (size=%s, type=%s)", document_id, actual_size, actual_type
+                )
+                await s3.delete_object(doc.file_path)
+                await self.repo.delete(doc)
+                failed.append(str(document_id))
+                continue
+
+            doc.file_size = actual_size
             doc.processing_status = ProcessingStatus.UPLOADED
 
             docs.append(doc)
@@ -119,24 +80,6 @@ class DocumentService:
             await self.session.refresh(doc)
 
         return docs, failed
-
-    async def _extract_document(
-        self,
-        doc: MedicalDocument,
-        file_path: Path,
-        user_id: uuid.UUID,
-        ocr_service,
-        embedding_formatter_service: EmbeddingsFormatterService,
-    ) -> None:
-        ocr_result: dict = await ocr_service.extract_text(file_path)
-        doc.ocr_text = ocr_result.get("text", "")
-        doc.ocr_metadata = ocr_result.get("metadata", {})
-
-        if not doc.ocr_text:
-            doc.processing_status = ProcessingStatus.FAILED
-            return
-
-        await self._run_extraction_pipeline(doc, user_id, embedding_formatter_service)
 
     async def _run_extraction_pipeline(
         self,
@@ -352,7 +295,12 @@ class DocumentService:
             raise NotFoundException(f"Document {document_id} not found")
 
         file_path = doc.file_path
+        # Remove the stored file first: if that fails the row survives and the delete can be retried,
+        # instead of leaving an orphaned file holding patient data.
+        if S3Service.is_s3_key(file_path):
+            await S3Service().delete_object(file_path)
+        else:
+            self.storage.delete(file_path)
+
         await self.repo.delete(doc)
         await self.session.commit()
-
-        self.storage.delete(file_path)

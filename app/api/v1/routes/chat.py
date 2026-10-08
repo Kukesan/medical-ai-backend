@@ -1,8 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import AI_LIMIT, limiter
 from app.core.dependencies import get_current_user, get_session
 from app.models.user import User
 from app.schemas.chat import ChatAskRequest, ChatHistoryResponse, ChatMessageOut, ChatResponse
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/chat")
 
 
 @router.post("", response_model=ChatResponse)
+@limiter.limit(AI_LIMIT)
 async def ask_chat(
+    request: Request,
     payload: ChatAskRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

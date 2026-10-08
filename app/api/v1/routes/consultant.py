@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import AI_LIMIT, limiter
 from app.core.dependencies import get_current_user, get_session
 from app.models.user import User
 from app.schemas.consultant import (
@@ -18,7 +19,9 @@ router = APIRouter(prefix="/consultant")
 
 
 @router.post("", response_model=ConsultantResponse)
+@limiter.limit(AI_LIMIT)
 async def ask_consultant(
+    request: Request,
     payload: ConsultantAskRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

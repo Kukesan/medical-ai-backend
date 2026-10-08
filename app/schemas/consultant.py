@@ -1,13 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import Field
+
 from app.models.enums import ChatContextType
 from app.schemas.base import ORMBaseSchema
 from app.schemas.common import Citation, SafetyWarning
 
 
 class ConsultantAskRequest(ORMBaseSchema):
-    question: str
+    question: str = Field(min_length=1, max_length=4000)
     session_id: str | None = None
     context_type: ChatContextType | None = None
     context_id: str | None = None

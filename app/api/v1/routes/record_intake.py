@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import AI_LIMIT, limiter
 from app.core.dependencies import get_current_user, get_session
 from app.models.medical_record import MedicalRecord
 from app.models.record_intake_session import RecordIntakeSession
@@ -55,7 +56,9 @@ def _to_record_item(record: MedicalRecord, record_type: RecordType) -> MedicalRe
 
 
 @router.post("", response_model=RecordIntakeResponse)
+@limiter.limit(AI_LIMIT)
 async def start_record_intake(
+    request: Request,
     payload: RecordIntakeStartRequest,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -83,7 +86,9 @@ async def get_record_intake(
 
 
 @router.post("/{intake_id}/answer", response_model=RecordIntakeResponse)
+@limiter.limit(AI_LIMIT)
 async def answer_record_intake(
+    request: Request,
     intake_id: uuid.UUID,
     payload: RecordIntakeAnswerRequest,
     user: User = Depends(get_current_user),

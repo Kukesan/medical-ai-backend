@@ -1,11 +1,13 @@
 from datetime import datetime
 
+from pydantic import Field
+
 from app.schemas.base import ORMBaseSchema
 from app.schemas.common import Citation, SafetyWarning
 
 
 class ChatAskRequest(ORMBaseSchema):
-    question: str
+    question: str = Field(min_length=1, max_length=4000)
     session_id: str | None = None
 
 
